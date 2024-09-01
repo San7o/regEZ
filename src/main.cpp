@@ -19,9 +19,9 @@ int main()
     std::cout << regez::prettify(std::format("{}\n", g)) << std::endl;
 
     // Create a regex object
-    regez::regex<std::string> r2(std::string("(a|b)*c"));
+    regez::regex<std::string> r(std::string("(a|b)*c"));
 
-    std::cout << regez::prettify(std::format("{}\n", r2)) << std::endl;
+    std::cout << regez::prettify(std::format("{}\n", r)) << std::endl;
 
     return 0;
 }
