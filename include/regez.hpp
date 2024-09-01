@@ -53,11 +53,33 @@ struct transition
 
     transition() = default;
     transition(state<C>* from, state<C>* to, std::optional<C> condition = std::nullopt);
+
+    transition set_condition(C condition);
+    transition set_from(state<C>* from);
+    transition set_to(state<C>* to);
 };
 
 template<typename C>
 transition<C>::transition(state<C>* from, state<C>* to, std::optional<C> condition)
         : from(from), to(to), condition(condition) {}
+
+template<typename C>
+transition<C> transition<C>::set_condition(C condition)
+{
+    this->condition = condition; return *this;
+}
+
+template<typename C>
+transition<C> transition<C>::set_from(state<C>* from)
+{
+    this->from = from; return *this;
+}
+
+template<typename C>
+transition<C> transition<C>::set_to(state<C>* to)
+{
+    this->to = to; return *this;
+}
 
 template<typename C>
 constexpr std::ostream& operator<<(std::ostream& os, const transition<C> t)
@@ -69,20 +91,56 @@ constexpr std::ostream& operator<<(std::ostream& os, const transition<C> t)
 }
 
 template<typename C>
+constexpr std::ostream& operator<<(std::ostream& os,
+                const std::vector<transition<C>>& ts)
+{
+    auto it = ts.begin();
+    if (it != ts.end())
+        os << "[" <<*it++;
+    for (; it != ts.end(); ++it)
+        os << ", " << *it;
+    os << "]";
+    return os;
+}
+
+template<typename C>
 struct state
 {
-    int id;
     bool is_final = false;
     std::vector<transition<C>> transitions;
 
-    state() = default;
-    state(int id, bool is_final = false);
+    state();
+    state(bool is_final);
+    int get_id() const;
     void add_transition(state<C>* to, std::optional<C> condition = std::nullopt);
+
+private:
+    int id_;
+    static int id_count;
 };
 
 template<typename C>
-state<C>::state(int id, bool is_final)
-        : id(id), is_final(is_final), transitions({}) {}
+int state<C>::id_count = 0;
+
+template<typename C>
+state<C>::state()
+        : is_final(false), transitions({})
+{
+    this->id_ = id_count++;
+}
+
+template<typename C>
+state<C>::state(bool is_final)
+        : is_final(is_final), transitions({})
+{
+    this->id_ = id_count++;
+}
+
+template<typename C>
+int state<C>::get_id() const
+{
+    return this->id_;
+}
 
 template<typename C>
 void state<C>::add_transition(state<C>* to, std::optional<C> condition)
@@ -93,21 +151,21 @@ void state<C>::add_transition(state<C>* to, std::optional<C> condition)
 template<typename C>
 constexpr std::ostream& operator<<(std::ostream& os, const state<C>& s)
 {
-    os << "{ \"state\": { \"id\": " << s.id << ", \"is_final\": "
+    os << "{ \"state\": { \"id\": " << s.get_id() << ", \"is_final\": "
        << (s.is_final ? "true" : "false") << " } }";
     return os;
 }
 
 template<typename C>
 constexpr std::ostream& operator<<(std::ostream& os,
-                const std::vector<transition<C>>& ts)
+                const std::vector<state<C>>& ss)
 {
-    auto it = ts.begin();
-    if (it != ts.end())
-        os << "{ \"transitions\": [" <<*it++;
-    for (; it != ts.end(); ++it)
+    auto it = ss.begin();
+    if (it != ss.end())
+        os << "[" << *it++;
+    for (; it != ss.end(); ++it)
         os << ", " << *it;
-    os << "] }";
+    os << "]";
     return os;
 }
 
@@ -142,8 +200,8 @@ regex<C>::regex(const C& reg)
 
     // This is just a placeholder:
     auto tmp = reg;
-    this->start = state<C>{1};
-    this->states = {};
+    this->start = state<C>();
+    this->states = {state<C>(true), state<C>()};
 }
 
 template<typename C>
@@ -155,33 +213,39 @@ void regex<C>::add_state(state<C> s)
 template<typename C>
 constexpr std::ostream& operator<<(std::ostream& os, const regex<C>& r)
 {
-    os << "{ \"regex\": { \"start\": " << r.start << ", \"num_states\": "
-       << r.states.size() << " } }";
+    os << "{ \"regex\": { \"start\": " << r.start << ", \"states\": "
+       << r.states << " } }";
     return os;
 }
 
 } // namespace regex
 
 template <typename C>
-struct std::formatter<regez::state<C>> {
-    constexpr auto parse(std::format_parse_context& ctx) {
+struct std::formatter<regez::state<C>>
+{
+    constexpr auto parse(std::format_parse_context& ctx)
+    {
         return ctx.begin();
     }
 
-    auto format(const regez::state<C>& obj, std::format_context& ctx) const {
+    auto format(const regez::state<C>& obj, std::format_context& ctx) const
+    {
         return std::format_to(ctx.out(),
-                "{{ \"state\": {{ \"id\": {}, \"is_final\": {} }} }}", obj.id,
+                "{{ \"state\": {{ \"id\": {}, \"is_final\": {} }} }}", obj.get_id(),
                 (obj.is_final ? "true" : "false") );
     }
 };
 
 template <typename C>
-struct std::formatter<regez::transition<C>> {
-    constexpr auto parse(std::format_parse_context& ctx) {
+struct std::formatter<regez::transition<C>>
+{
+    constexpr auto parse(std::format_parse_context& ctx)
+    {
         return ctx.begin();
     }
 
-    auto format(const regez::transition<C>& obj, std::format_context& ctx) const {
+    auto format(const regez::transition<C>& obj, std::format_context& ctx) const
+    {
         return std::format_to(ctx.out(),
                 "{{ \"transition\": {{ \"from\": {}, \"to\": {}, \"condition\": \"{}\" }} }}",
                 *obj.from, *obj.to, obj.condition.value_or("ε"));
@@ -189,33 +253,61 @@ struct std::formatter<regez::transition<C>> {
 };
 
 template <typename C>
-struct std::formatter<std::vector<regez::transition<C>>> {
-    constexpr auto parse(std::format_parse_context& ctx) {
+struct std::formatter<std::vector<regez::transition<C>>>
+{
+    constexpr auto parse(std::format_parse_context& ctx)
+    {
         return ctx.begin();
     }
 
     auto format(const std::vector<regez::transition<C>>& obj,
-                    std::format_context& ctx) const {
-        std::format_to(ctx.out(), "{{ \"transitions\": [");
+                    std::format_context& ctx) const
+    {
+        std::format_to(ctx.out(), "[");
         auto it = obj.begin();
         if (it != obj.end())
             std::format_to(ctx.out(), "{}", *it++);
         for (; it != obj.end(); ++it)
                 std::format_to(ctx.out(), ", {}", *it);
-        std::format_to(ctx.out(), "] }}");
+        std::format_to(ctx.out(), "]");
         return ctx.out();
     }
 };
 
 template <typename C>
-struct std::formatter<regez::regex<C>> {
-    constexpr auto parse(std::format_parse_context& ctx) {
+struct std::formatter<std::vector<regez::state<C>>>
+{
+    constexpr auto parse(std::format_parse_context& ctx)
+    {
         return ctx.begin();
     }
 
-    auto format(const regez::regex<C>& obj, std::format_context& ctx) const {
+    auto format(const std::vector<regez::state<C>>& obj,
+                    std::format_context& ctx) const
+    {
+        std::format_to(ctx.out(), "[");
+        auto it = obj.begin();
+        if (it != obj.end())
+            std::format_to(ctx.out(), "{}", *it++);
+        for (; it != obj.end(); ++it)
+                std::format_to(ctx.out(), ", {}", *it);
+        std::format_to(ctx.out(), "]");
+        return ctx.out();
+    }
+};
+
+template <typename C>
+struct std::formatter<regez::regex<C>>
+{
+    constexpr auto parse(std::format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(const regez::regex<C>& obj, std::format_context& ctx) const
+    {
         return std::format_to(ctx.out(),
-                "{{ \"regex\": {{ \"start\": {}, \"num_states\": {} }} }}",
-                obj.start, obj.states.size());
+                "{{ \"regex\": {{ \"start\": {}, \"states\": {} }} }}",
+                obj.start, obj.states);
     }
 };
