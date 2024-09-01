@@ -2,7 +2,7 @@
  * MIT License
  *
  * Copyright (c) 2024 Giovanni Santini
-
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -10,8 +10,7 @@
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in
- all
+ * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -31,6 +30,7 @@
 #include <iostream>
 #include <ostream>
 #include <format>
+#include <array>
 
 namespace regez
 {
@@ -54,9 +54,9 @@ struct transition
     transition() = default;
     transition(state<C>* from, state<C>* to, std::optional<C> condition = std::nullopt);
 
-    transition set_condition(C condition);
-    transition set_from(state<C>* from);
-    transition set_to(state<C>* to);
+    void set_condition(C condition);
+    void set_from(state<C>* from);
+    void set_to(state<C>* to);
 };
 
 template<typename C>
@@ -64,21 +64,21 @@ transition<C>::transition(state<C>* from, state<C>* to, std::optional<C> conditi
         : from(from), to(to), condition(condition) {}
 
 template<typename C>
-transition<C> transition<C>::set_condition(C condition)
+void transition<C>::set_condition(C condition)
 {
-    this->condition = condition; return *this;
+    this->condition = condition;
 }
 
 template<typename C>
-transition<C> transition<C>::set_from(state<C>* from)
+void transition<C>::set_from(state<C>* from)
 {
-    this->from = from; return *this;
+    this->from = from;
 }
 
 template<typename C>
-transition<C> transition<C>::set_to(state<C>* to)
+void transition<C>::set_to(state<C>* to)
 {
-    this->to = to; return *this;
+    this->to = to;
 }
 
 template<typename C>
@@ -106,7 +106,7 @@ constexpr std::ostream& operator<<(std::ostream& os,
 template<typename C>
 struct state
 {
-    bool is_final = false;
+    bool is_final;
     std::vector<transition<C>> transitions;
 
     state();
@@ -169,6 +169,95 @@ constexpr std::ostream& operator<<(std::ostream& os,
     return os;
 }
 
+// In order of precedence (lowest to highest)
+enum grammar_enum
+{
+
+    REGEZ_CONCAT = 0,
+    REGEZ_OR,             // |
+    REGEZ_ANY,            // *
+    REGEZ_OPEN_GROUP,     // (
+    REGEZ_CLOSE_GROUP,    // )
+    REGEZ_OPEN_MATCH,     // [
+    REGEZ_CLOSE_MATCH,    // ]
+    REGEZ_ESCAPE,         // escape character
+    __REGEZ_MAX
+};
+
+constexpr std::ostream& operator<<(std::ostream& os, const grammar_enum& ge)
+{
+    switch (ge)
+    {
+        case REGEZ_OPEN_GROUP:
+            os << "REGEZ_OPEN_GROUP";
+            break;
+        case REGEZ_CLOSE_GROUP:
+            os << "REGEZ_CLOSE_GROUP";
+            break;
+        case REGEZ_ANY:
+            os << "REGEZ_ANY";
+            break;
+        case REGEZ_OR:
+            os << "REGEZ_OR";
+            break;
+        case REGEZ_CONCAT:
+            os << "REGEZ_CONCAT";
+            break;
+        case REGEZ_ESCAPE:
+            os << "REGEZ_ESCAPE";
+            break;
+        case REGEZ_OPEN_MATCH:
+            os << "REGEZ_OPEN_MATCH";
+            break;
+        case REGEZ_CLOSE_MATCH:
+            os << "REGEZ_CLOSE_MATCH";
+            break;
+        default:
+            os << "UNKNOWN";
+            break;
+    } 
+    return os;
+}
+
+template<typename C>
+struct grammar
+{
+    std::array<std::optional<C>, __REGEZ_MAX> tokens;
+    grammar() = default;
+    void set_token(C value, grammar_enum type);
+};
+
+template<typename C>
+void grammar<C>::set_token(C value, grammar_enum type)
+{
+    this->tokens[type] = value;
+}
+
+template<typename C>
+constexpr std::ostream& operator<<(std::ostream& os, const grammar<C>& g)
+{
+    int count = 0;
+    auto it = g.tokens.begin();
+    if (it != g.tokens.end())
+        os << "{ \"grammar\": [{ \"token\": \"" << (grammar_enum)count << "\", \"value\": \""
+           << it->value_or("NONE") << "\" }";
+    for (++it; it != g.tokens.end(); ++it)
+    {
+        count++;
+        os << ",{ \"token\": \"" << (grammar_enum)count << "\", \"value\": \""
+           << it->value_or("NONE") << "\" }";
+    }
+    os << "]}";
+    return os;
+}
+
+
+template<typename C>
+C __regex_to_postfix(const C& reg)
+{
+    return reg;
+}
+
 template<typename C>
 struct regex
 {
@@ -176,7 +265,7 @@ struct regex
     std::vector<state<C>> states;
 
     regex() = default;
-    regex(const C& reg);
+    regex(C reg);
     regex(state<C> start, std::vector<state<C>> states);
     void add_state(state<C> s);
 };
@@ -186,11 +275,12 @@ regex<C>::regex(state<C> start, std::vector<state<C>> states)
         : start(start), states(states) {}
 
 template<typename C>
-regex<C>::regex(const C& reg)
+regex<C>::regex(C reg)
 {
     // TODO: Regex expansion
 
     // TODO: Regex infix to postfix
+    reg = __regex_to_postfix(reg);
 
     // TODO: Regex postfix to NFA
 
@@ -216,6 +306,78 @@ constexpr std::ostream& operator<<(std::ostream& os, const regex<C>& r)
     os << "{ \"regex\": { \"start\": " << r.start << ", \"states\": "
        << r.states << " } }";
     return os;
+}
+
+
+std::string prettify(std::string s)
+{
+    std::string res;
+    int spaces = 0;
+    bool is_quoted = false;
+    bool is_escaped = false;
+    for(auto& c : s) {
+        if (is_escaped) {
+            is_escaped = false;
+            res += c;
+            continue;
+        }
+        if (c == '\\') {
+            is_escaped = true;
+            res += c;
+            continue;
+        }
+        if (c == '"') is_quoted = !is_quoted;
+        if (is_quoted)
+        {
+            res += c;
+            continue;
+        }
+        switch(c)
+        {
+            case '{':
+                res += c;
+                res += '\n';
+                spaces += 2;
+                for(int i = 0; i < spaces; i++)
+                    res += ' ';
+                break;
+            case '}':
+                res += '\n';
+                spaces -= 2;
+                for(int i = 0; i < spaces; i++)
+                    res += ' ';
+                res += c;
+                break;
+            case '[':
+                res += c;
+                res += '\n';
+                spaces += 2;
+                for(int i = 0; i < spaces; i++)
+                    res += ' ';
+                break;
+            case ']':
+                res += '\n';
+                spaces -= 2;
+                for(int i = 0; i < spaces; i++)
+                    res += ' ';
+                res += c;
+                break;
+            case '\n':
+                for(int i = 0; i < spaces; i++)
+                    res += ' ';
+                break;
+            case ',':
+                res += c;
+                res += '\n';
+                for(int i = 0; i < spaces; i++)
+                    res += ' ';
+                break;
+            default:
+                res += c;
+                break;
+        }
+    }
+    return res;
 }
 
 } // namespace regex
@@ -268,7 +430,7 @@ struct std::formatter<std::vector<regez::transition<C>>>
         if (it != obj.end())
             std::format_to(ctx.out(), "{}", *it++);
         for (; it != obj.end(); ++it)
-                std::format_to(ctx.out(), ", {}", *it);
+                std::format_to(ctx.out(), ",{}", *it);
         std::format_to(ctx.out(), "]");
         return ctx.out();
     }
@@ -290,7 +452,7 @@ struct std::formatter<std::vector<regez::state<C>>>
         if (it != obj.end())
             std::format_to(ctx.out(), "{}", *it++);
         for (; it != obj.end(); ++it)
-                std::format_to(ctx.out(), ", {}", *it);
+                std::format_to(ctx.out(), ",{}", *it);
         std::format_to(ctx.out(), "]");
         return ctx.out();
     }
@@ -309,5 +471,66 @@ struct std::formatter<regez::regex<C>>
         return std::format_to(ctx.out(),
                 "{{ \"regex\": {{ \"start\": {}, \"states\": {} }} }}",
                 obj.start, obj.states);
+    }
+};
+
+template<>
+struct std::formatter<regez::grammar_enum>
+{
+    constexpr auto parse(std::format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(const regez::grammar_enum& obj, std::format_context& ctx) const
+    {
+        switch (obj)
+        {
+            case regez::REGEZ_OPEN_GROUP:
+                return std::format_to(ctx.out(), "REGEZ_OPEN_GROUP");
+            case regez::REGEZ_CLOSE_GROUP:
+                return std::format_to(ctx.out(), "REGEZ_CLOSE_GROUP");
+            case regez::REGEZ_ANY:
+                return std::format_to(ctx.out(), "REGEZ_ANY");
+            case regez::REGEZ_OR:
+                return std::format_to(ctx.out(), "REGEZ_OR");
+            case regez::REGEZ_CONCAT:
+                return std::format_to(ctx.out(), "REGEZ_CONCAT");
+            case regez::REGEZ_ESCAPE:
+                return std::format_to(ctx.out(), "REGEZ_ESCAPE");
+            case regez::REGEZ_OPEN_MATCH:
+                return std::format_to(ctx.out(), "REGEZ_OPEN_MATCH");
+            case regez::REGEZ_CLOSE_MATCH:
+                return std::format_to(ctx.out(), "REGEZ_CLOSE_MATCH");
+            default:
+                return std::format_to(ctx.out(), "UNKNOWN");
+        }
+    }
+};
+
+template <typename C>
+struct std::formatter<regez::grammar<C>>
+{
+    constexpr auto parse(std::format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(const regez::grammar<C>& obj, std::format_context& ctx) const
+    {
+        std::format_to(ctx.out(), "{{ \"grammar\": [");
+        int count = 0;
+        auto it = obj.tokens.begin();
+        if (it != obj.tokens.end())
+            std::format_to(ctx.out(), "{{ \"token\": \"{}\", \"value\": \"{}\" }}",
+                            (regez::grammar_enum)count, it->value_or("NONE"));
+        for (++it; it != obj.tokens.end(); ++it)
+        {
+            count++;
+            std::format_to(ctx.out(), ",{{ \"token\": \"{}\", \"value\": \"{}\" }}",
+                            (regez::grammar_enum)count, it->value_or("NONE"));
+        }
+        std::format_to(ctx.out(), "]}}");
+        return ctx.out();
     }
 };
