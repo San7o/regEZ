@@ -1,4 +1,4 @@
-<h1 aligh=center>regEZ</h1>
+<h1 align=center>regEZ</h1>
 
 regEZ is a modern, header only implementation of a general regex engine in C++23. It works with any type using an user-defined grammar.
 
