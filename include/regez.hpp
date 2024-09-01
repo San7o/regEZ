@@ -253,7 +253,7 @@ constexpr std::ostream& operator<<(std::ostream& os, const grammar<C>& g)
 
 
 template<typename C>
-C __regex_to_postfix(const C& reg)
+C __infix_to_postfix(const C& reg)
 {
     return reg;
 }
@@ -280,7 +280,7 @@ regex<C>::regex(C reg)
     // TODO: Regex expansion
 
     // TODO: Regex infix to postfix
-    reg = __regex_to_postfix(reg);
+    reg = __infix_to_postfix(reg);
 
     // TODO: Regex postfix to NFA
 
@@ -307,7 +307,6 @@ constexpr std::ostream& operator<<(std::ostream& os, const regex<C>& r)
        << r.states << " } }";
     return os;
 }
-
 
 std::string prettify(std::string s)
 {
