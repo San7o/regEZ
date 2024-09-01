@@ -24,13 +24,13 @@ beween "OPEN_MATCH" and "CLOSED_MATCH". eg. with "OPEN_MATCH"="[" and "CLOSED_MA
 
 ## Works with any type!
 
-Yes, this does not only work for string, but for any user defined types. The tokens 
+Yes, this does not work only for strings, but for any iterable types. The tokens 
 are of the same type as the regex and can be assigned when creating the regex object.
 This means what you could make some efficient pattern matching and queries on
 exotic datasets.
 
 This is an example with the usual string regex syntx we all know:
-```bash
+```c++
 // Define the regex grammar
 regez::grammar<std::string> g;
 g.set_token(std::string("("), regez::REGEZ_OPEN_GROUP);
@@ -49,11 +49,40 @@ regez::regex<std::string> r(std::string("(a|b)*c"));
 ## Json serialization
 
 The regex DFA can be serialized in a protable json format, so It can be easy ported 
-elsewhere (nice to make visualizations for example).
+elsewhere (handy for making visualizations for example).
 
-```bash
+```c++
 regez::prettify(std::format("{}\n", my_regex)) 
 ```
+
+```json
+# value
+{
+   "regex": {
+     "start": {
+       "state": {
+         "id": 1,
+         "is_final": false
+      }
+    },
+     "states": [
+      {
+         "state": {
+           "id": 2,
+           "is_final": true
+        }
+      },
+      {
+         "state": {
+           "id": 3,
+           "is_final": false
+        }
+      }
+    ]
+  }
+}
+```
+
 
 ## Current State
 
