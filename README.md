@@ -1,6 +1,6 @@
 <h1 align=center>regEZ</h1>
 
-regEZ is a modern, header only implementation of a general regex engine in C++23. It works with any type using an user-defined grammar.
+regEZ is a modern, header only implementation of a general regex engine in C++23. It works with any container using an user-defined grammar.
 
 ## Supported grammar
 
@@ -17,14 +17,16 @@ The regex will allow the following tokens:
 - `REGEZ_CLOSE_GROUP`: closes a group, eg. ")"
     
 - `REGEZ_OPEN_MATCH`, `REGEZ_CLOSE_MATCH`: the regex will match any object encosed
-beween "OPEN_MATCH" and "CLOSED_MATCH". eg. with "OPEN_MATCH"="[" and "CLOSED_MATCH"="]", 
+beween `OPEN_MATCH` and `CLOSED_MATCH`. eg. with `OPEN_MATCH`="[" and `CLOSED_MATCH`="]", 
 "[ABC]" will match either A, or B, or C
     
+- `REGEZ_ONE_OR_MORE`: "+"
+
 - `REGEZ_ESCAPE`: escape any of the previous tokens
 
 ## Works with any type!
 
-Yes, this does not work only for strings, but for any iterable types. The tokens 
+Yes, this does not work only for strings, but for any container. The tokens 
 are of the same type as the regex and can be assigned when creating the regex object.
 This means what you could make some efficient pattern matching and queries on
 exotic datasets.
@@ -43,7 +45,7 @@ g.set_token(std::string("."), regez::REGEZ_CONCAT);
 g.set_token(std::string(R"(\\)"), regez::REGEZ_ESCAPE);
 
 // Create a regex object
-regez::regex<std::string> r(std::string("(a|b)*c"));
+regez::regex<std::string> r(std::string("(a|b)*c"), &g);
 ```
 
 ## Json serialization
@@ -56,7 +58,6 @@ regez::prettify(std::format("{}\n", my_regex))
 ```
 
 ```json
-# value
 {
    "regex": {
      "start": {
@@ -95,8 +96,7 @@ TODO
 
 ## Testing
 
-This library uses `Boost.Test` for testing. To build the tests, run cmake with 
-`REGEZ_BUILD_TESTS=ON` option.
+To build the tests, run cmake with `REGEZ_BUILD_TESTS=ON` option.
 ```bash
 cmake -B build -D REGEZ_BUILD_TESTS=ON
 cmake --build build

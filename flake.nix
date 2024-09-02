@@ -27,8 +27,6 @@
           packages = with pkgsFor.${system}; [
             gcc14                   # compiler
             cmake                   # build system
-            boost                   # for testing
-          ];
           shellHook = ''
               zsh
           '';

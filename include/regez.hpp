@@ -31,6 +31,8 @@
 #include <ostream>
 #include <format>
 #include <array>
+#include <stack>
+#include <iterator>
 
 namespace regez
 {
@@ -172,10 +174,10 @@ constexpr std::ostream& operator<<(std::ostream& os,
 // In order of precedence (lowest to highest)
 enum grammar_enum
 {
-
-    REGEZ_CONCAT = 0,
-    REGEZ_OR,             // |
+    REGEZ_OR = 0,         // |
+    REGEZ_CONCAT,
     REGEZ_ANY,            // *
+    REGEZ_ONE_OR_MORE,    // +
     REGEZ_OPEN_GROUP,     // (
     REGEZ_CLOSE_GROUP,    // )
     REGEZ_OPEN_MATCH,     // [
@@ -212,6 +214,9 @@ constexpr std::ostream& operator<<(std::ostream& os, const grammar_enum& ge)
         case REGEZ_CLOSE_MATCH:
             os << "REGEZ_CLOSE_MATCH";
             break;
+        case REGEZ_ONE_OR_MORE:
+            os << "REGEZ_ONE_OR_MORE";
+            break;
         default:
             os << "UNKNOWN";
             break;
@@ -222,13 +227,14 @@ constexpr std::ostream& operator<<(std::ostream& os, const grammar_enum& ge)
 template<typename C>
 struct grammar
 {
-    std::array<std::optional<C>, __REGEZ_MAX> tokens;
+    using iter_type = typename C::value_type;
+    std::array<std::optional<iter_type>, __REGEZ_MAX> tokens;
     grammar() = default;
-    void set_token(C value, grammar_enum type);
+    void set_token(iter_type value, grammar_enum type);
 };
 
 template<typename C>
-void grammar<C>::set_token(C value, grammar_enum type)
+void grammar<C>::set_token(iter_type value, grammar_enum type)
 {
     this->tokens[type] = value;
 }
@@ -239,48 +245,67 @@ constexpr std::ostream& operator<<(std::ostream& os, const grammar<C>& g)
     int count = 0;
     auto it = g.tokens.begin();
     if (it != g.tokens.end())
-        os << "{ \"grammar\": [{ \"token\": \"" << (grammar_enum)count << "\", \"value\": \""
-           << it->value_or("NONE") << "\" }";
+    {
+        os << "{ \"grammar\": [{ \"token\": \"" << (grammar_enum)count << "\", \"value\": \"";
+        if (it->has_value())
+            if (it->value() == '\\')
+                os << "\\\\";
+            else
+                os << it->value();
+        else
+            os << "NONE";
+        os << "\" }";
+    }
     for (++it; it != g.tokens.end(); ++it)
     {
         count++;
-        os << ",{ \"token\": \"" << (grammar_enum)count << "\", \"value\": \""
-           << it->value_or("NONE") << "\" }";
+        os << ",{ \"token\": \"" << (grammar_enum)count << "\", \"value\": \"";
+        if (it->has_value())
+            if (it->value() == '\\')
+                os << "\\\\";
+            else
+                os << it->value();
+        else
+            os << "NONE";
+        os << "\" }";
     }
     os << "]}";
+
+    // Escape the es
     return os;
-}
-
-
-template<typename C>
-C __infix_to_postfix(const C& reg)
-{
-    return reg;
 }
 
 template<typename C>
 struct regex
 {
     state<C> start;
+    state<C> end;
     std::vector<state<C>> states;
 
     regex() = default;
-    regex(C reg);
-    regex(state<C> start, std::vector<state<C>> states);
+    regex(C reg, grammar<C>* g);
+    regex(state<C> start, state<C> end, std::vector<state<C>> states, grammar<C>* g);
     void add_state(state<C> s);
+
+    static std::optional<C> infix_to_postfix(const C& reg, grammar<C>* g);
+private:
+    grammar<C>* _grammar;
 };
 
 template<typename C>
-regex<C>::regex(state<C> start, std::vector<state<C>> states)
-        : start(start), states(states) {}
+regex<C>::regex(state<C> start, state<C> end, std::vector<state<C>> states, grammar<C>* g)
+        : start(start), end(end), states(states), _grammar(g) {}
 
 template<typename C>
-regex<C>::regex(C reg)
+regex<C>::regex(C reg, grammar<C>* g)
 {
-    // TODO: Regex expansion
+    // TODO: Regex expansion and correctness check
 
-    // TODO: Regex infix to postfix
-    reg = __infix_to_postfix(reg);
+    std::optional<C> pos = infix_to_postfix(reg, g);
+    if (!pos.has_value())
+    {
+        throw std::runtime_error("Error during regex conversion to postfix notation.");
+    }
 
     // TODO: Regex postfix to NFA
 
@@ -292,12 +317,110 @@ regex<C>::regex(C reg)
     auto tmp = reg;
     this->start = state<C>();
     this->states = {state<C>(true), state<C>()};
+    this->_grammar = g;
 }
 
 template<typename C>
 void regex<C>::add_state(state<C> s)
 {
     this->states.push_back(s);
+}
+
+#define CHECK_PRECEDENCE(TOKEN) \
+if (!token_stack.empty()) \
+while(token_stack.top().first >= TOKEN && token_stack.top().first != REGEZ_OPEN_GROUP) \
+{ \
+    postfix += token_stack.top().second; \
+    token_stack.pop(); \
+    if (token_stack.empty()) \
+        break; \
+}
+     
+
+// assuming we have a valid regex in infix notation with explicit concatenation
+// and no REGEX_OPEN_MATCH or REGEX_CLOSE_MATCH,
+// does not check for validity of the regex
+template<typename C>
+std::optional<C> regex<C>::infix_to_postfix(const C& reg, grammar<C>* g)
+{
+    using iter_type = typename C::value_type;
+    C postfix;
+    std::stack<std::pair<grammar_enum, iter_type>> token_stack;
+    bool is_escaped = false;
+    for (auto& r : reg)
+    {
+        if (is_escaped)
+        {
+            is_escaped = false;
+            postfix += g->tokens[REGEZ_ESCAPE].value();
+            postfix += r;
+            continue;
+        }
+        bool found = false;
+        for (int i = 0; i < __REGEZ_MAX; i++)
+        {
+            if (g->tokens[i].has_value() && g->tokens[i].value() == r)
+            {
+                found = true;
+                switch ((grammar_enum)i) // assuming token has value
+                {
+                    case REGEZ_OPEN_GROUP:
+                        token_stack.push(std::make_pair(REGEZ_OPEN_GROUP, r));
+                        break;
+                    case REGEZ_CLOSE_GROUP:
+                        if (!token_stack.empty())
+                        {
+                            iter_type top = token_stack.top().second;
+                            token_stack.pop();
+                            while (top != g->tokens[REGEZ_OPEN_GROUP].value())
+                            {
+                                postfix += top;
+                                if (token_stack.empty())
+                                    break;
+                                top = token_stack.top().second;
+                                token_stack.pop();
+                            }
+                        }
+                        else
+                        {
+                            return std::nullopt;
+                        }
+                        break;
+                    case REGEZ_CONCAT:
+                        CHECK_PRECEDENCE(REGEZ_CONCAT);
+                        token_stack.push(std::make_pair(REGEZ_CONCAT, r));
+                        break;
+                    case REGEZ_OR:
+                        CHECK_PRECEDENCE(REGEZ_OR);
+                        token_stack.push(std::make_pair(REGEZ_OR, r));
+                        break;
+                    case REGEZ_ANY:
+                        CHECK_PRECEDENCE(REGEZ_ANY);
+                        token_stack.push(std::make_pair(REGEZ_ANY, r));
+                        break;
+                    case REGEZ_ONE_OR_MORE:
+                        CHECK_PRECEDENCE(REGEZ_ONE_OR_MORE);
+                        token_stack.push(std::make_pair(REGEZ_ONE_OR_MORE, r));
+                        break;
+                    case REGEZ_ESCAPE:
+                        is_escaped = true;
+                        break;
+                    default:
+                        // Invalid token
+                        return std::nullopt;
+                }
+                break;
+            }
+        }
+        if (!found)
+            postfix += r;
+    }
+    while (!token_stack.empty())
+    {
+        postfix += token_stack.top().second;
+        token_stack.pop();
+    }
+    return postfix;
 }
 
 template<typename C>
@@ -313,15 +436,8 @@ std::string prettify(std::string s)
     std::string res;
     int spaces = 0;
     bool is_quoted = false;
-    bool is_escaped = false;
     for(auto& c : s) {
-        if (is_escaped) {
-            is_escaped = false;
-            res += c;
-            continue;
-        }
         if (c == '\\') {
-            is_escaped = true;
             res += c;
             continue;
         }
@@ -501,6 +617,8 @@ struct std::formatter<regez::grammar_enum>
                 return std::format_to(ctx.out(), "REGEZ_OPEN_MATCH");
             case regez::REGEZ_CLOSE_MATCH:
                 return std::format_to(ctx.out(), "REGEZ_CLOSE_MATCH");
+            case regez::REGEZ_ONE_OR_MORE:
+                return std::format_to(ctx.out(), "REGEZ_ONE_OR_MORE");
             default:
                 return std::format_to(ctx.out(), "UNKNOWN");
         }
@@ -520,14 +638,31 @@ struct std::formatter<regez::grammar<C>>
         std::format_to(ctx.out(), "{{ \"grammar\": [");
         int count = 0;
         auto it = obj.tokens.begin();
+        std::string val;
         if (it != obj.tokens.end())
+        {
+            if (it->has_value())
+                if (it->value() == '\\')
+                    val = "\\\\";
+                else
+                    val = std::format("{}", it->value());
+            else
+                val = "NONE";
             std::format_to(ctx.out(), "{{ \"token\": \"{}\", \"value\": \"{}\" }}",
-                            (regez::grammar_enum)count, it->value_or("NONE"));
+                            (regez::grammar_enum)count, val);
+        }
         for (++it; it != obj.tokens.end(); ++it)
         {
             count++;
+            if (it->has_value())
+                if (it->value() == '\\')
+                    val = "\\\\";
+                else
+                    val = std::format("{}", it->value());
+            else
+                val = "NONE";
             std::format_to(ctx.out(), ",{{ \"token\": \"{}\", \"value\": \"{}\" }}",
-                            (regez::grammar_enum)count, it->value_or("NONE"));
+                            (regez::grammar_enum)count, val);
         }
         std::format_to(ctx.out(), "]}}");
         return ctx.out();
