@@ -49,24 +49,25 @@ struct regex;
 template<typename C>
 struct transition
 {
+    using iter_type = typename C::value_type;
     state<C>* from;
     state<C>* to;
-    std::optional<C> condition;
+    std::optional<iter_type> condition;
 
     transition() = default;
-    transition(state<C>* from, state<C>* to, std::optional<C> condition = std::nullopt);
+    transition(state<C>* from, state<C>* to, std::optional<iter_type> condition = std::nullopt);
 
-    void set_condition(C condition);
+    void set_condition(iter_type condition);
     void set_from(state<C>* from);
     void set_to(state<C>* to);
 };
 
 template<typename C>
-transition<C>::transition(state<C>* from, state<C>* to, std::optional<C> condition)
+transition<C>::transition(state<C>* from, state<C>* to, std::optional<iter_type> condition)
         : from(from), to(to), condition(condition) {}
 
 template<typename C>
-void transition<C>::set_condition(C condition)
+void transition<C>::set_condition(iter_type condition)
 {
     this->condition = condition;
 }
@@ -87,8 +88,15 @@ template<typename C>
 constexpr std::ostream& operator<<(std::ostream& os, const transition<C> t)
 {
     os << "{ \"transition\": { \"from\": " << *t.from << ", \"to\": "
-       << *t.to << ", \"condition\": \"" << t.condition.value_or("ε")
-       << "\" } }";
+       << *t.to << ", \"condition\": \"";
+    if (t.condition.has_value())
+    {
+        std::string tmp = std::format("{}", t.condition.value());
+        os << (tmp == "\\" ? "\\\\" : tmp);
+    }
+    else
+        os << "ε";
+    os << "\" } }";
     return os;
 }
 
@@ -248,10 +256,10 @@ constexpr std::ostream& operator<<(std::ostream& os, const grammar<C>& g)
     {
         os << "{ \"grammar\": [{ \"token\": \"" << (grammar_enum)count << "\", \"value\": \"";
         if (it->has_value())
-            if (it->value() == '\\')
-                os << "\\\\";
-            else
-                os << it->value();
+        {
+            std::string tmp = std::format("{}", it->value());
+            os << (tmp == "\\" ? "\\\\" : tmp);
+        }
         else
             os << "NONE";
         os << "\" }";
@@ -261,10 +269,10 @@ constexpr std::ostream& operator<<(std::ostream& os, const grammar<C>& g)
         count++;
         os << ",{ \"token\": \"" << (grammar_enum)count << "\", \"value\": \"";
         if (it->has_value())
-            if (it->value() == '\\')
-                os << "\\\\";
-            else
-                os << it->value();
+        {
+            std::string tmp = std::format("{}", it->value());
+            os << (tmp == "\\" ? "\\\\" : tmp);
+        }
         else
             os << "NONE";
         os << "\" }";
@@ -299,7 +307,9 @@ regex<C>::regex(state<C> start, state<C> end, std::vector<state<C>> states, gram
 template<typename C>
 regex<C>::regex(C reg, grammar<C>* g)
 {
-    // TODO: Regex expansion and correctness check
+    // TODO: Check correctness
+
+    // TODO: Regex expansion
 
     std::optional<C> pos = infix_to_postfix(reg, g);
     if (!pos.has_value())
@@ -352,7 +362,6 @@ std::optional<C> regex<C>::infix_to_postfix(const C& reg, grammar<C>* g)
         if (is_escaped)
         {
             is_escaped = false;
-            postfix += g->tokens[REGEZ_ESCAPE].value();
             postfix += r;
             continue;
         }
@@ -523,9 +532,17 @@ struct std::formatter<regez::transition<C>>
 
     auto format(const regez::transition<C>& obj, std::format_context& ctx) const
     {
+        std::string cond;
+        if (obj.condition.has_value())
+        {
+            std::string tmp = std::format("{}", obj.condition.value());
+            cond = (tmp == "\\" ? "\\\\" : tmp);
+        }
+        else
+            cond = "ε";
         return std::format_to(ctx.out(),
                 "{{ \"transition\": {{ \"from\": {}, \"to\": {}, \"condition\": \"{}\" }} }}",
-                *obj.from, *obj.to, obj.condition.value_or("ε"));
+                *obj.from, *obj.to, cond);
     }
 };
 
@@ -567,7 +584,7 @@ struct std::formatter<std::vector<regez::state<C>>>
         if (it != obj.end())
             std::format_to(ctx.out(), "{}", *it++);
         for (; it != obj.end(); ++it)
-                std::format_to(ctx.out(), ",{}", *it);
+                std::format_to(ctx.out(), ", {}", *it);
         std::format_to(ctx.out(), "]");
         return ctx.out();
     }
@@ -642,10 +659,10 @@ struct std::formatter<regez::grammar<C>>
         if (it != obj.tokens.end())
         {
             if (it->has_value())
-                if (it->value() == '\\')
-                    val = "\\\\";
-                else
-                    val = std::format("{}", it->value());
+            {
+                std::string tmp = std::format("{}", it->value());
+                val = (tmp == "\\" ? "\\\\" : tmp);
+            }
             else
                 val = "NONE";
             std::format_to(ctx.out(), "{{ \"token\": \"{}\", \"value\": \"{}\" }}",
@@ -655,10 +672,10 @@ struct std::formatter<regez::grammar<C>>
         {
             count++;
             if (it->has_value())
-                if (it->value() == '\\')
-                    val = "\\\\";
-                else
-                    val = std::format("{}", it->value());
+            {
+                std::string tmp = std::format("{}", it->value());
+                val = (tmp == "\\" ? "\\\\" : tmp);
+            }
             else
                 val = "NONE";
             std::format_to(ctx.out(), ",{{ \"token\": \"{}\", \"value\": \"{}\" }}",
