@@ -283,6 +283,42 @@ constexpr std::ostream& operator<<(std::ostream& os, const grammar<C>& g)
     return os;
 }
 
+enum regez_error
+{
+    REGEZ_OK                     = 0,
+    REGEZ_INVALID_GROUP          = -1,
+    REGEZ_INVALID_MATCH          = -2,
+    REGEZ_INVALID_TOKEN_IN_MATCH = -3,
+    REGEZ_EMPTY                  = -4,
+    __REGEZ_ERROR_MAX
+};
+
+constexpr std::ostream& operator<<(std::ostream& os, const regez_error& re)
+{
+    switch (re)
+    {
+        case REGEZ_OK:
+            os << "REGEZ_OK";
+            break;
+        case REGEZ_INVALID_GROUP:
+            os << "REGEZ_INVALID_GROUP";
+            break;
+        case REGEZ_INVALID_MATCH:
+            os << "REGEZ_INVALID_MATCH";
+            break;
+        case REGEZ_INVALID_TOKEN_IN_MATCH:
+            os << "REGEZ_INVALID_TOKEN_IN_MATCH";
+            break;
+        case REGEZ_EMPTY:
+            os << "REGEZ_EMPTY";
+            break;
+        default:
+            os << "UNKNOWN";
+            break;
+    }
+    return os;
+}
+
 template<typename C>
 struct regex
 {
@@ -295,6 +331,7 @@ struct regex
     regex(state<C> start, state<C> end, std::vector<state<C>> states, grammar<C>* g);
     void add_state(state<C> s);
 
+    static regez_error check_correctness(const C& reg, grammar<C>* g);
     static std::optional<C> infix_to_postfix(const C& reg, grammar<C>* g);
 private:
     grammar<C>* _grammar;
@@ -307,7 +344,12 @@ regex<C>::regex(state<C> start, state<C> end, std::vector<state<C>> states, gram
 template<typename C>
 regex<C>::regex(C reg, grammar<C>* g)
 {
-    // TODO: Check correctness
+    regez_error err = check_correctness(reg, g);
+    if (err != REGEZ_OK)
+    {
+        std::cerr << "Error: " << err << std::endl;
+        throw std::runtime_error("Invalid regex.");
+    }
 
     // TODO: Regex expansion
 
@@ -336,6 +378,103 @@ void regex<C>::add_state(state<C> s)
     this->states.push_back(s);
 }
 
+// check for:
+// - correct number of open and close groups
+// - correct number of open and close matches
+// - no tokens inside matches
+template<typename C>
+regez_error regex<C>::check_correctness(const C& reg, grammar<C>* g)
+{
+
+    if (reg.empty())
+        return REGEZ_EMPTY;
+
+    int n_group = 0;
+    int n_match = 0;
+    bool is_in_match = false;
+    bool escaped = false;
+
+    for (auto& r : reg)
+    {
+        bool found = false;
+        for (int i = 0; i < __REGEZ_MAX; i++)
+        {
+            if (g->tokens[i].has_value() && g->tokens[i].value() == r)
+            {
+                switch ((grammar_enum)i) // assuming token has value
+                {
+                    case REGEZ_OPEN_GROUP:
+                        if (is_in_match && !escaped)
+                            return REGEZ_INVALID_TOKEN_IN_MATCH;
+                        if (escaped) escaped = false;
+                        else n_group++;
+                        break;
+                    case REGEZ_CLOSE_GROUP:
+                        if (is_in_match && !escaped)
+                            return REGEZ_INVALID_TOKEN_IN_MATCH;
+                        if (escaped) escaped = false;
+                        else n_group--;
+                        break;
+                    case REGEZ_OPEN_MATCH:
+                        if (is_in_match && !escaped)
+                            return REGEZ_INVALID_TOKEN_IN_MATCH;
+                        if (escaped) escaped = false;
+                        else 
+                        { 
+                            is_in_match = true;
+                            n_match++;
+                        }
+                        break;
+                    case REGEZ_CLOSE_MATCH:
+                        if (is_in_match && !escaped)
+                        {
+                            n_match--;
+                            is_in_match = false;
+                        }
+                        else if (!is_in_match)
+                            return REGEZ_INVALID_MATCH;
+                        escaped = false;
+                        break;
+                    case REGEZ_CONCAT:
+                        if (is_in_match && !escaped)
+                            return REGEZ_INVALID_TOKEN_IN_MATCH;
+                        escaped = false;
+                        break;
+                    case REGEZ_OR:
+                        if (is_in_match && !escaped)
+                            return REGEZ_INVALID_TOKEN_IN_MATCH;
+                        escaped = false;
+                        break;
+                    case REGEZ_ANY:
+                        if (is_in_match && !escaped)
+                            return REGEZ_INVALID_TOKEN_IN_MATCH;
+                        escaped = false;
+                        break;
+                    case REGEZ_ONE_OR_MORE:
+                        if (is_in_match && !escaped)
+                            return REGEZ_INVALID_TOKEN_IN_MATCH;
+                        escaped = false;
+                        break;
+                    case REGEZ_ESCAPE:
+                        escaped = !escaped;
+                        break;
+                    default:
+                        break;
+                }
+                found = true;
+                break;
+            }
+        }
+        if (!found) escaped = false;
+    }
+    if (n_group != 0)
+        return REGEZ_INVALID_GROUP;
+    if (n_match != 0)
+        return REGEZ_INVALID_MATCH;
+
+    return REGEZ_OK;
+}
+
 #define CHECK_PRECEDENCE(TOKEN) \
 if (!token_stack.empty()) \
 while(token_stack.top().first >= TOKEN && token_stack.top().first != REGEZ_OPEN_GROUP) \
@@ -345,7 +484,6 @@ while(token_stack.top().first >= TOKEN && token_stack.top().first != REGEZ_OPEN_
     if (token_stack.empty()) \
         break; \
 }
-     
 
 // assuming we have a valid regex in infix notation with explicit concatenation
 // and no REGEX_OPEN_MATCH or REGEX_CLOSE_MATCH,
@@ -636,6 +774,34 @@ struct std::formatter<regez::grammar_enum>
                 return std::format_to(ctx.out(), "REGEZ_CLOSE_MATCH");
             case regez::REGEZ_ONE_OR_MORE:
                 return std::format_to(ctx.out(), "REGEZ_ONE_OR_MORE");
+            default:
+                return std::format_to(ctx.out(), "UNKNOWN");
+        }
+    }
+};
+
+template <>
+struct std::formatter<regez::regez_error>
+{
+    constexpr auto parse(std::format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(const regez::regez_error& obj, std::format_context& ctx) const
+    {
+        switch (obj)
+        {
+            case regez::REGEZ_OK:
+                return std::format_to(ctx.out(), "REGEZ_OK");
+            case regez::REGEZ_INVALID_GROUP:
+                return std::format_to(ctx.out(), "REGEZ_INVALID_GROUP");
+            case regez::REGEZ_INVALID_MATCH:
+                return std::format_to(ctx.out(), "REGEZ_INVALID_MATCH");
+            case regez::REGEZ_INVALID_TOKEN_IN_MATCH:
+                return std::format_to(ctx.out(), "REGEZ_INVALID_TOKEN_IN_MATCH");
+            case regez::REGEZ_EMPTY:
+                return std::format_to(ctx.out(), "REGEZ_EMPTY");
             default:
                 return std::format_to(ctx.out(), "UNKNOWN");
         }
