@@ -37,26 +37,9 @@ void test_state()
     ASSERT_EQ(s5.get_id(), 4);
 }
 
-// test if both printing via stream and std::format work
-// and produce the same output
-void test_print()
+void test_correctness()
 {
-    // printing states
-    regez::state<std::string> s1;
-    std::ostringstream stream;
-    stream << s1;
-    ASSERT(stream.str() != "");
-    ASSERT_EQ(stream.str(), std::format("{}", s1));
-
-    // printing transitions
-    regez::state<std::string> s2;
-    regez::transition<std::string> t1(&s1, &s2, 'a');
-    stream.str("");
-    stream << t1;
-    ASSERT(stream.str() != "");
-    ASSERT_EQ(stream.str(), std::format("{}", t1));
-
-    // printing grammar
+    // Define the regex grammar
     regez::grammar<std::string> g;
     g.set_token('(', regez::REGEZ_OPEN_GROUP);
     g.set_token(')', regez::REGEZ_CLOSE_GROUP);
@@ -67,17 +50,39 @@ void test_print()
     g.set_token('.', regez::REGEZ_CONCAT);
     g.set_token('+', regez::REGEZ_ONE_OR_MORE);
     g.set_token('\\', regez::REGEZ_ESCAPE);
-    stream.str("");
-    stream << g;
-    ASSERT(stream.str() != "");
-    ASSERT_EQ(stream.str(), std::format("{}", g));
 
-    // printing regex
-    regez::regex<std::string> r1(std::string("a"), &g);
-    stream.str("");
-    stream << r1;
-    ASSERT(stream.str() != "");
-    ASSERT_EQ(stream.str(), std::format("{}", r1));
+    regez::regez_error res;
+    // valid regex
+    res = regez::regex<std::string>::check_correctness(std::string("a"), &g);
+    ASSERT(res == regez::REGEZ_OK);
+    res = regez::regex<std::string>::check_correctness(std::string("a|b"), &g);
+    ASSERT(res == regez::REGEZ_OK);
+    res = regez::regex<std::string>::check_correctness(std::string("a|b|c|d|e"), &g);
+    ASSERT(res == regez::REGEZ_OK);
+    res = regez::regex<std::string>::check_correctness(std::string("(a|b)*c"), &g);
+    ASSERT(res == regez::REGEZ_OK);
+    res = regez::regex<std::string>::check_correctness(std::string("(a.b|c)*"), &g);
+    ASSERT(res == regez::REGEZ_OK);
+    res = regez::regex<std::string>::check_correctness(std::string("[abc]"), &g);
+    ASSERT(res == regez::REGEZ_OK);
+    res = regez::regex<std::string>::check_correctness(std::string("[a\\.b]"), &g);
+    ASSERT(res == regez::REGEZ_OK);
+
+    // invalid regex
+    res = regez::regex<std::string>::check_correctness(std::string(""), &g);
+    ASSERT(res == regez::REGEZ_EMPTY);
+    res = regez::regex<std::string>::check_correctness(std::string("("), &g);
+    ASSERT(res == regez::REGEZ_INVALID_GROUP);
+    res = regez::regex<std::string>::check_correctness(std::string(")"), &g);
+    ASSERT(res == regez::REGEZ_INVALID_GROUP);
+    res = regez::regex<std::string>::check_correctness(std::string("["), &g);
+    ASSERT(res == regez::REGEZ_INVALID_MATCH);
+    res = regez::regex<std::string>::check_correctness(std::string("]"), &g);
+    ASSERT(res == regez::REGEZ_INVALID_MATCH);
+    res = regez::regex<std::string>::check_correctness(std::string("(()"), &g);
+    ASSERT(res == regez::REGEZ_INVALID_GROUP);
+    res = regez::regex<std::string>::check_correctness(std::string("(a|b))"), &g);
+    ASSERT(res == regez::REGEZ_INVALID_GROUP);
 }
 
 void test_infix_to_postfix()
@@ -154,9 +159,53 @@ void test_infix_to_postfix()
     ASSERT_EQ(out.value(), "ab|cdef|*.|.g.");
 }
 
+// test if both printing via stream and std::format work
+// and produce the same output
+void test_print()
+{
+    // printing states
+    regez::state<std::string> s1;
+    std::ostringstream stream;
+    stream << s1;
+    ASSERT(stream.str() != "");
+    ASSERT_EQ(stream.str(), std::format("{}", s1));
+
+    // printing transitions
+    regez::state<std::string> s2;
+    regez::transition<std::string> t1(&s1, &s2, 'a');
+    stream.str("");
+    stream << t1;
+    ASSERT(stream.str() != "");
+    ASSERT_EQ(stream.str(), std::format("{}", t1));
+
+    // printing grammar
+    regez::grammar<std::string> g;
+    g.set_token('(', regez::REGEZ_OPEN_GROUP);
+    g.set_token(')', regez::REGEZ_CLOSE_GROUP);
+    g.set_token('[', regez::REGEZ_OPEN_MATCH);
+    g.set_token(']', regez::REGEZ_CLOSE_MATCH);
+    g.set_token('|', regez::REGEZ_OR);
+    g.set_token('*', regez::REGEZ_ANY);
+    g.set_token('.', regez::REGEZ_CONCAT);
+    g.set_token('+', regez::REGEZ_ONE_OR_MORE);
+    g.set_token('\\', regez::REGEZ_ESCAPE);
+    stream.str("");
+    stream << g;
+    ASSERT(stream.str() != "");
+    ASSERT_EQ(stream.str(), std::format("{}", g));
+
+    // printing regex
+    regez::regex<std::string> r1(std::string("a"), &g);
+    stream.str("");
+    stream << r1;
+    ASSERT(stream.str() != "");
+    ASSERT_EQ(stream.str(), std::format("{}", r1));
+}
+
 int main()
 {
     test_state();
+    test_correctness();
     test_infix_to_postfix();
     test_print();
 
