@@ -2,26 +2,10 @@
 #include <iostream>
 #include <sstream>
 #include "regez.hpp"
+#include "test.hpp"
 
 int errors = 0;
 int num_assertions = 0;
-
-#define ASSERT(x) \
-        num_assertions++; \
-        if (!(x)) { \
-                std::cerr << "Line " << __LINE__ << " in file " \
-                << __FILE__ << ": Assertion failed: " << #x << std::endl; \
-                errors++;\
-        }
-
-#define ASSERT_EQ(x, y) \
-        num_assertions++; \
-        if ((x) != (y)) { \
-                std::cerr << "Line " << __LINE__ << " in file " \
-                << __FILE__ << ": Assertion failed: " << x \
-                << " != " << y << std::endl; \
-                errors++;\
-        }
 
 void test_state()
 {
@@ -159,6 +143,100 @@ void test_infix_to_postfix()
     ASSERT_EQ(out.value(), "ab|cdef|*.|.g.");
 }
 
+void test_nfa_value()
+{
+    auto r = regez::regex_from_value<std::string>('a');
+    ASSERT(r.start.transitions.size() == 1);
+    ASSERT(r.start.transitions[0].condition.has_value());
+    ASSERT_EQ(r.start.transitions[0].condition.value(), 'a');
+    ASSERT(r.start.transitions[0].to == &r.end);
+}
+
+void test_nfa_or()
+{
+    auto a = regez::regex_from_value<std::string>('a');
+    auto b = regez::regex_from_value<std::string>('b');
+    regez::regex<std::string> r = regez::regex_or(a, b);
+    ASSERT(r.start.transitions.size() == 2);
+    ASSERT(!r.start.transitions[0].condition.has_value());
+    ASSERT(*r.start.transitions[0].to == a.start);
+    ASSERT(!r.start.transitions[1].condition.has_value());
+    ASSERT(*r.start.transitions[1].to == b.start);
+    auto a_start = r.start.transitions[0].to;
+    auto b_start = r.start.transitions[1].to;
+    ASSERT(*a_start == a.start);
+    ASSERT(*b_start == b.start);
+}
+
+void test_nfa_concat()
+{
+    auto a = regez::regex_from_value<std::string>('a');
+    auto b = regez::regex_from_value<std::string>('b');
+    regez::regex<std::string> r = regez::regex_concat(a, b);
+    ASSERT(r.start.transitions.size() == 1);
+    ASSERT(!r.start.transitions[0].condition.has_value());
+    ASSERT(*r.start.transitions[0].to == a.start);
+    auto a_start = r.start.transitions[0].to;
+    ASSERT(*a_start == a.start);
+}
+
+void test_nfa_any()
+{
+    auto a = regez::regex_from_value<std::string>('a');
+    regez::regex<std::string> r = regez::regex_any(a);
+    ASSERT(r.start.transitions.size() == 2);
+    ASSERT(!r.start.transitions[0].condition.has_value());
+    ASSERT(*r.start.transitions[0].to == a.start);
+    ASSERT(!r.start.transitions[1].condition.has_value());
+    ASSERT(*r.start.transitions[1].to == r.end);
+}
+
+void test_thompson_algorithm()
+{
+    regez::grammar<std::string> g;
+    g.set_token('(', regez::REGEZ_OPEN_GROUP);
+    g.set_token(')', regez::REGEZ_CLOSE_GROUP);
+    g.set_token('[', regez::REGEZ_OPEN_MATCH);
+    g.set_token(']', regez::REGEZ_CLOSE_MATCH);
+    g.set_token('|', regez::REGEZ_OR);
+    g.set_token('*', regez::REGEZ_ANY);
+    g.set_token('.', regez::REGEZ_CONCAT);
+    g.set_token('+', regez::REGEZ_ONE_OR_MORE);
+    g.set_token('\\', regez::REGEZ_ESCAPE);
+    
+
+    auto reg = regez::regex<std::string>::thompson_algorithm(std::string(""), &g);
+    ASSERT(!reg.has_value());
+    reg = regez::regex<std::string>::thompson_algorithm(std::string("a"), &g);
+    ASSERT(reg.has_value());
+}
+
+void test_nfa_one_or_more()
+{
+    auto a = regez::regex_from_value<std::string>('a');
+    regez::regex<std::string> r = regez::regex_one_or_more(a);
+    ASSERT(r.start.transitions.size() == 1);
+    ASSERT(!r.start.transitions[0].condition.has_value());
+    ASSERT(*r.start.transitions[0].to == a.start);
+    auto& reg = r.regexes[0];
+    ASSERT(reg == a);
+    ASSERT(reg.end.transitions.size() == 2);
+    ASSERT(!reg.end.transitions[0].condition.has_value());
+    ASSERT(*reg.end.transitions[0].to == a.start);
+    ASSERT(!reg.end.transitions[1].condition.has_value());
+    ASSERT(*reg.end.transitions[1].to == r.end);
+}
+
+void test_nfa()
+{
+    test_nfa_value();
+    test_nfa_or();
+    test_nfa_concat();
+    test_nfa_any();
+    test_nfa_one_or_more();
+    test_thompson_algorithm();
+}
+
 // test if both printing via stream and std::format work
 // and produce the same output
 void test_print()
@@ -207,6 +285,7 @@ int main()
     test_state();
     test_correctness();
     test_infix_to_postfix();
+    test_nfa();
     test_print();
 
     if (errors > 0)
