@@ -33,9 +33,22 @@
 #include <array>
 #include <stack>
 #include <iterator>
+#include <print>
 
 namespace regez
 {
+
+#ifdef REGEZ_DEBUG
+bool regez_debug = true;
+#else
+bool regez_debug = false;
+#endif
+
+#define DEBUG(...) \
+    do { \
+        if (regez_debug) \
+            std::print(__VA_ARGS__); \
+    } while(0)
 
 template<typename C>
 struct state;
@@ -52,24 +65,32 @@ struct transition
     using iter_type = typename C::value_type;
     state<C>* from;
     state<C>* to;
+    bool is_epsilon;
     std::optional<iter_type> condition;
 
     transition() = default;
-    transition(state<C>* from, state<C>* to, std::optional<iter_type> condition = std::nullopt);
+    transition(state<C>* from, state<C>* to, bool is_epsilon = false, std::optional<iter_type> condition = std::nullopt);
 
     void set_condition(iter_type condition);
+    void set_epsilon(bool is_epsilon);
     void set_from(state<C>* from);
     void set_to(state<C>* to);
 };
 
 template<typename C>
-transition<C>::transition(state<C>* from, state<C>* to, std::optional<iter_type> condition)
-        : from(from), to(to), condition(condition) {}
+transition<C>::transition(state<C>* from, state<C>* to, bool is_epsilon, std::optional<iter_type> condition)
+        : from(from), to(to), is_epsilon(is_epsilon), condition(condition) {}
 
 template<typename C>
 void transition<C>::set_condition(iter_type condition)
 {
     this->condition = condition;
+}
+
+template<typename C>
+void transition<C>::set_epsilon(bool is_epsilon)
+{
+    this->is_epsilon = is_epsilon;
 }
 
 template<typename C>
@@ -85,44 +106,16 @@ void transition<C>::set_to(state<C>* to)
 }
 
 template<typename C>
-constexpr std::ostream& operator<<(std::ostream& os, const transition<C> t)
-{
-    os << "{ \"transition\": { \"from\": " << *t.from << ", \"to\": "
-       << *t.to << ", \"condition\": \"";
-    if (t.condition.has_value())
-    {
-        std::string tmp = std::format("{}", t.condition.value());
-        os << (tmp == "\\" ? "\\\\" : tmp);
-    }
-    else
-        os << "ε";
-    os << "\" } }";
-    return os;
-}
-
-template<typename C>
-constexpr std::ostream& operator<<(std::ostream& os,
-                const std::vector<transition<C>>& ts)
-{
-    auto it = ts.begin();
-    if (it != ts.end())
-        os << "[" <<*it++;
-    for (; it != ts.end(); ++it)
-        os << ", " << *it;
-    os << "]";
-    return os;
-}
-
-template<typename C>
 struct state
 {
+    using iter_type = typename C::value_type;
     bool is_final;
     std::vector<transition<C>> transitions;
 
     state();
     state(bool is_final);
     int get_id() const;
-    void add_transition(state<C>* to, std::optional<C> condition = std::nullopt);
+    void add_transition(state<C>* to, bool is_epsilon = false, std::optional<iter_type> condition = std::nullopt);
 
 private:
     int id_;
@@ -153,30 +146,9 @@ int state<C>::get_id() const
 }
 
 template<typename C>
-void state<C>::add_transition(state<C>* to, std::optional<C> condition)
+void state<C>::add_transition(state<C>* to, bool is_epsilon, std::optional<typename C::value_type> condition)
 {
-    this->transitions.push_back(transition<C>(this, to, condition));
-}
-
-template<typename C>
-constexpr std::ostream& operator<<(std::ostream& os, const state<C>& s)
-{
-    os << "{ \"state\": { \"id\": " << s.get_id() << ", \"is_final\": "
-       << (s.is_final ? "true" : "false") << " } }";
-    return os;
-}
-
-template<typename C>
-constexpr std::ostream& operator<<(std::ostream& os,
-                const std::vector<state<C>>& ss)
-{
-    auto it = ss.begin();
-    if (it != ss.end())
-        os << "[" << *it++;
-    for (; it != ss.end(); ++it)
-        os << ", " << *it;
-    os << "]";
-    return os;
+    this->transitions.push_back(transition<C>(this, to, is_epsilon, condition));
 }
 
 // In order of precedence (lowest to highest)
@@ -191,52 +163,14 @@ enum grammar_enum
     REGEZ_OPEN_MATCH,     // [
     REGEZ_CLOSE_MATCH,    // ]
     REGEZ_ESCAPE,         // escape character
-    __REGEZ_MAX
+    _REGEZ_MAX
 };
-
-constexpr std::ostream& operator<<(std::ostream& os, const grammar_enum& ge)
-{
-    switch (ge)
-    {
-        case REGEZ_OPEN_GROUP:
-            os << "REGEZ_OPEN_GROUP";
-            break;
-        case REGEZ_CLOSE_GROUP:
-            os << "REGEZ_CLOSE_GROUP";
-            break;
-        case REGEZ_ANY:
-            os << "REGEZ_ANY";
-            break;
-        case REGEZ_OR:
-            os << "REGEZ_OR";
-            break;
-        case REGEZ_CONCAT:
-            os << "REGEZ_CONCAT";
-            break;
-        case REGEZ_ESCAPE:
-            os << "REGEZ_ESCAPE";
-            break;
-        case REGEZ_OPEN_MATCH:
-            os << "REGEZ_OPEN_MATCH";
-            break;
-        case REGEZ_CLOSE_MATCH:
-            os << "REGEZ_CLOSE_MATCH";
-            break;
-        case REGEZ_ONE_OR_MORE:
-            os << "REGEZ_ONE_OR_MORE";
-            break;
-        default:
-            os << "UNKNOWN";
-            break;
-    } 
-    return os;
-}
 
 template<typename C>
 struct grammar
 {
     using iter_type = typename C::value_type;
-    std::array<std::optional<iter_type>, __REGEZ_MAX> tokens;
+    std::array<std::optional<iter_type>, _REGEZ_MAX> tokens;
     grammar() = default;
     void set_token(iter_type value, grammar_enum type);
 };
@@ -247,42 +181,6 @@ void grammar<C>::set_token(iter_type value, grammar_enum type)
     this->tokens[type] = value;
 }
 
-template<typename C>
-constexpr std::ostream& operator<<(std::ostream& os, const grammar<C>& g)
-{
-    int count = 0;
-    auto it = g.tokens.begin();
-    if (it != g.tokens.end())
-    {
-        os << "{ \"grammar\": [{ \"token\": \"" << (grammar_enum)count << "\", \"value\": \"";
-        if (it->has_value())
-        {
-            std::string tmp = std::format("{}", it->value());
-            os << (tmp == "\\" ? "\\\\" : tmp);
-        }
-        else
-            os << "NONE";
-        os << "\" }";
-    }
-    for (++it; it != g.tokens.end(); ++it)
-    {
-        count++;
-        os << ",{ \"token\": \"" << (grammar_enum)count << "\", \"value\": \"";
-        if (it->has_value())
-        {
-            std::string tmp = std::format("{}", it->value());
-            os << (tmp == "\\" ? "\\\\" : tmp);
-        }
-        else
-            os << "NONE";
-        os << "\" }";
-    }
-    os << "]}";
-
-    // Escape the es
-    return os;
-}
-
 enum regez_error
 {
     REGEZ_OK                     = 0,
@@ -290,60 +188,36 @@ enum regez_error
     REGEZ_INVALID_MATCH          = -2,
     REGEZ_INVALID_TOKEN_IN_MATCH = -3,
     REGEZ_EMPTY                  = -4,
-    __REGEZ_ERROR_MAX
+    _REGEZ_ERROR_MAX
 };
-
-constexpr std::ostream& operator<<(std::ostream& os, const regez_error& re)
-{
-    switch (re)
-    {
-        case REGEZ_OK:
-            os << "REGEZ_OK";
-            break;
-        case REGEZ_INVALID_GROUP:
-            os << "REGEZ_INVALID_GROUP";
-            break;
-        case REGEZ_INVALID_MATCH:
-            os << "REGEZ_INVALID_MATCH";
-            break;
-        case REGEZ_INVALID_TOKEN_IN_MATCH:
-            os << "REGEZ_INVALID_TOKEN_IN_MATCH";
-            break;
-        case REGEZ_EMPTY:
-            os << "REGEZ_EMPTY";
-            break;
-        default:
-            os << "UNKNOWN";
-            break;
-    }
-    return os;
-}
 
 template<typename C>
 struct regex
 {
     state<C> start;
     state<C> end;
-    std::vector<state<C>> states;
+    std::vector<regex<C>> regexes;
 
-    regex() = default;
+    regex() {};
     regex(C reg, grammar<C>* g);
-    regex(state<C> start, state<C> end, std::vector<state<C>> states, grammar<C>* g);
-    void add_state(state<C> s);
+    regex(state<C> start, state<C> end, std::vector<regex<C>> regexes, grammar<C>* g);
+    void add_regex(regex<C> s = regex<C>());
 
     static regez_error check_correctness(const C& reg, grammar<C>* g);
     static std::optional<C> infix_to_postfix(const C& reg, grammar<C>* g);
+    static std::optional<regex<C>> thompson_algorithm(const C& reg, grammar<C>* g);
 private:
     grammar<C>* _grammar;
 };
 
 template<typename C>
-regex<C>::regex(state<C> start, state<C> end, std::vector<state<C>> states, grammar<C>* g)
-        : start(start), end(end), states(states), _grammar(g) {}
+regex<C>::regex(state<C> start, state<C> end, std::vector<regex<C>> regexes, grammar<C>* g)
+        : start(start), end(end), regexes(regexes), _grammar(g) {}
 
 template<typename C>
 regex<C>::regex(C reg, grammar<C>* g)
 {
+    DEBUG("Regex: {}\n", reg);
     regez_error err = check_correctness(reg, g);
     if (err != REGEZ_OK)
     {
@@ -358,24 +232,26 @@ regex<C>::regex(C reg, grammar<C>* g)
     {
         throw std::runtime_error("Error during regex conversion to postfix notation.");
     }
+    DEBUG("Postfix: {}\n", pos.value());
 
-    // TODO: Regex postfix to NFA
+    std::optional<regex<C>> nfa = thompson_algorithm(pos.value(), g);
+    if (!nfa.has_value())
+    {
+        throw std::runtime_error("Error during regex conversion to NFA.");
+    }
+    DEBUG("NFA: {}\n", nfa.value());
 
     // TODO: NFA to DFA
 
     // TODO: DFA to minimized DFA
 
-    // This is just a placeholder:
-    auto tmp = reg;
-    this->start = state<C>();
-    this->states = {state<C>(true), state<C>()};
-    this->_grammar = g;
+    *this = nfa.value();
 }
 
 template<typename C>
-void regex<C>::add_state(state<C> s)
+void regex<C>::add_regex(regex<C> s)
 {
-    this->states.push_back(s);
+    this->regexes.push_back(s);
 }
 
 // check for:
@@ -385,7 +261,6 @@ void regex<C>::add_state(state<C> s)
 template<typename C>
 regez_error regex<C>::check_correctness(const C& reg, grammar<C>* g)
 {
-
     if (reg.empty())
         return REGEZ_EMPTY;
 
@@ -397,7 +272,7 @@ regez_error regex<C>::check_correctness(const C& reg, grammar<C>* g)
     for (auto& r : reg)
     {
         bool found = false;
-        for (int i = 0; i < __REGEZ_MAX; i++)
+        for (int i = 0; i < _REGEZ_MAX; i++)
         {
             if (g->tokens[i].has_value() && g->tokens[i].value() == r)
             {
@@ -504,7 +379,7 @@ std::optional<C> regex<C>::infix_to_postfix(const C& reg, grammar<C>* g)
             continue;
         }
         bool found = false;
-        for (int i = 0; i < __REGEZ_MAX; i++)
+        for (int i = 0; i < _REGEZ_MAX; i++)
         {
             if (g->tokens[i].has_value() && g->tokens[i].value() == r)
             {
@@ -571,20 +446,175 @@ std::optional<C> regex<C>::infix_to_postfix(const C& reg, grammar<C>* g)
 }
 
 template<typename C>
-constexpr std::ostream& operator<<(std::ostream& os, const regex<C>& r)
+regex<C> regex_from_value(const typename C::value_type& a)
 {
-    os << "{ \"regex\": { \"start\": " << r.start << ", \"states\": "
-       << r.states << " } }";
-    return os;
+    regex<C> out;
+    out.start.add_transition(&out.end, false,
+                    std::optional<typename C::value_type>(a));
+    return out;
 }
+
+template<typename C>
+regex<C> regex_or(const regex<C>& op1, const regex<C>& op2)
+{
+    regex<C> out;
+    out.add_regex(op1);
+    out.add_regex(op2);
+    regex<C>& a = out.regexes[0];
+    regex<C>& b = out.regexes[1];
+    out.start.add_transition(&a.start, true);
+    out.start.add_transition(&b.start, true);
+    a.end.add_transition(&out.end, false, std::nullopt);
+    b.end.add_transition(&out.end, false, std::nullopt);
+    return out;
+}
+
+template<typename C>
+regex<C> regex_concat(const regex<C>& op1, const regex<C>& op2)
+{
+    regex<C> out;
+    out.add_regex(op1);
+    out.add_regex(op2);
+    regex<C>& a = out.regexes[0];
+    regex<C>& b = out.regexes[1];
+    out.start.add_transition(&a.start, true);
+    a.end.add_transition(&b.start, true);
+    return out;
+}
+
+template<typename C>
+regex<C> regex_any(const regex<C>& op)
+{
+    regex<C> out;
+    out.add_regex(op);
+    regex<C>& a = out.regexes[0];
+    out.start.add_transition(&a.start, true);
+    out.start.add_transition(&out.end, false, std::nullopt);
+    a.end.add_transition(&a.start, true);
+    return out;
+}
+
+template<typename C>
+regex<C> regex_one_or_more(const regex<C>& op)
+{
+    regex<C> out;
+    out.add_regex(op);
+    regex<C>& a = out.regexes[0];
+    out.start.add_transition(&a.start, true);
+    a.end.add_transition(&a.start, true);
+    a.end.add_transition(&out.end, false, std::nullopt);
+    return out;
+}
+
+template<typename C>
+std::optional<regex<C>> regex<C>::thompson_algorithm(const C& reg, grammar<C>* g)
+{
+    if (reg.empty())
+        return std::nullopt;
+
+    using iter_type = typename C::value_type;
+    regex<C> out;
+    std::stack<regex<C>> regex_stack;
+
+    for (const iter_type& r : reg)
+    {
+        bool found = false;
+        for (int i = 0; i < _REGEZ_MAX; i++)
+        {
+            if (g->tokens[i].has_value() && g->tokens[i].value() == r)
+            {
+                found = true;
+                switch ((grammar_enum)i)
+                {
+                    case REGEZ_CONCAT:
+                        if (regex_stack.size() < 2)
+                            return std::nullopt;
+                        {
+                            regex<C> b = regex_stack.top();
+                            regex_stack.pop();
+                            regex<C> a = regex_stack.top();
+                            regex_stack.pop();
+                            regex_stack.push(regex_concat(a, b));
+                        }
+                        break;
+                    case REGEZ_OR:
+                        if (regex_stack.size() < 2)
+                            return std::nullopt;
+                        {
+                            regex<C> b = regex_stack.top();
+                            regex_stack.pop();
+                            regex<C> a = regex_stack.top();
+                            regex_stack.pop();
+                            regex_stack.push(regex_or(a, b));
+                        }
+                        break;
+                    case REGEZ_ANY:
+                        if (regex_stack.empty())
+                            return std::nullopt;
+                        {
+                            regex<C> a = regex_stack.top();
+                            regex_stack.pop();
+                            regex_stack.push(regex_any(a));
+                        }
+                        break;
+                    case REGEZ_ONE_OR_MORE:
+                        if (regex_stack.empty())
+                            return std::nullopt;
+                        {
+                            regex<C> a = regex_stack.top();
+                            regex_stack.pop();
+                            regex_stack.push(regex_one_or_more(a));
+                        }
+                        break;
+                    default:
+                        return std::nullopt;
+                        break;
+                }
+                break;
+            }
+        }
+        if (!found)
+            regex_stack.push(regex_from_value<C>(r));
+    }
+    out = regex_stack.top();
+
+    return out;
+}
+
+template<typename C>
+bool operator==(const transition<C>& lhs, const transition<C>& rhs)
+{
+    return lhs.from == rhs.from &&
+            lhs.to == rhs.to &&
+            lhs.is_epsilon == rhs.is_epsilon &&
+            lhs.condition == rhs.condition;
+}
+
+template<typename C>
+bool operator==(const state<C>& lhs, const state<C>& rhs)
+{
+    return lhs.get_id() == rhs.get_id();
+}
+
+template<typename C>
+bool operator==(const regex<C>& lhs, const regex<C>& rhs)
+{
+    return lhs.start == rhs.start &&
+            lhs.end == rhs.end &&
+            lhs.regexes == rhs.regexes;
+}
+
+// printing
 
 std::string prettify(std::string s)
 {
     std::string res;
     int spaces = 0;
     bool is_quoted = false;
-    for(auto& c : s) {
-        if (c == '\\') {
+    for(auto& c : s)
+    {
+        if (c == '\\')
+        {
             res += c;
             continue;
         }
@@ -640,6 +670,178 @@ std::string prettify(std::string s)
         }
     }
     return res;
+}
+
+template<typename C>
+constexpr std::ostream& operator<<(std::ostream& os, const transition<C> t)
+{
+    os << "{ \"transition\": { \"from\": " << *t.from << ", \"to\": "
+       << *t.to << ", \"condition\": \"";
+    if (t.condition.has_value())
+    {
+        std::string tmp = std::format("{}", t.condition.value());
+        os << (tmp == "\\" ? "\\\\" : tmp);
+    }
+    else
+        os << "ε";
+    os << "\" } }";
+    return os;
+}
+
+template<typename C>
+constexpr std::ostream& operator<<(std::ostream& os, const state<C>& s)
+{
+    os << "{ \"state\": { \"id\": " << s.get_id() << ", \"is_final\": "
+       << (s.is_final ? "true" : "false") << " } }";
+    return os;
+}
+
+template<typename C>
+constexpr std::ostream& operator<<(std::ostream& os, const regex<C>& r)
+{
+    os << "{ \"regex\": { \"start\": " << r.start << ", \"end\": "
+       << r.end << ", \"regexes\": " << r.regexes << " } }";
+    return os;
+}
+
+template<typename C>
+constexpr std::ostream& operator<<(std::ostream& os,
+                const std::vector<transition<C>>& ts)
+{
+    auto it = ts.begin();
+    if (it != ts.end())
+        os << "[" <<*it++;
+    for (; it != ts.end(); ++it)
+        os << ", " << *it;
+    os << "]";
+    return os;
+}
+
+template<typename C>
+constexpr std::ostream& operator<<(std::ostream& os,
+                const std::vector<state<C>>& ss)
+{
+    auto it = ss.begin();
+    if (it != ss.end())
+        os << "[" << *it++;
+    for (; it != ss.end(); ++it)
+        os << ", " << *it;
+    os << "]";
+    return os;
+}
+
+template<typename C>
+constexpr std::ostream& operator<<(std::ostream& os,
+                const std::vector<regex<C>>& rs)
+{
+    auto it = rs.begin();
+    os << "[";
+    if (it != rs.end())
+        os << *it++;
+    for (; it != rs.end(); ++it)
+        os << ", " << *it;
+    os << "]";
+    return os;
+}
+
+constexpr std::ostream& operator<<(std::ostream& os, const grammar_enum& ge)
+{
+    switch (ge)
+    {
+        case REGEZ_OPEN_GROUP:
+            os << "REGEZ_OPEN_GROUP";
+            break;
+        case REGEZ_CLOSE_GROUP:
+            os << "REGEZ_CLOSE_GROUP";
+            break;
+        case REGEZ_ANY:
+            os << "REGEZ_ANY";
+            break;
+        case REGEZ_OR:
+            os << "REGEZ_OR";
+            break;
+        case REGEZ_CONCAT:
+            os << "REGEZ_CONCAT";
+            break;
+        case REGEZ_ESCAPE:
+            os << "REGEZ_ESCAPE";
+            break;
+        case REGEZ_OPEN_MATCH:
+            os << "REGEZ_OPEN_MATCH";
+            break;
+        case REGEZ_CLOSE_MATCH:
+            os << "REGEZ_CLOSE_MATCH";
+            break;
+        case REGEZ_ONE_OR_MORE:
+            os << "REGEZ_ONE_OR_MORE";
+            break;
+        default:
+            os << "UNKNOWN";
+            break;
+    } 
+    return os;
+}
+
+template<typename C>
+constexpr std::ostream& operator<<(std::ostream& os, const grammar<C>& g)
+{
+    int count = 0;
+    auto it = g.tokens.begin();
+    if (it != g.tokens.end())
+    {
+        os << "{ \"grammar\": [{ \"token\": \"" << (grammar_enum)count << "\", \"value\": \"";
+        if (it->has_value())
+        {
+            std::string tmp = std::format("{}", it->value());
+            os << (tmp == "\\" ? "\\\\" : tmp);
+        }
+        else
+            os << "NONE";
+        os << "\" }";
+    }
+    for (++it; it != g.tokens.end(); ++it)
+    {
+        count++;
+        os << ",{ \"token\": \"" << (grammar_enum)count << "\", \"value\": \"";
+        if (it->has_value())
+        {
+            std::string tmp = std::format("{}", it->value());
+            os << (tmp == "\\" ? "\\\\" : tmp);
+        }
+        else
+            os << "NONE";
+        os << "\" }";
+    }
+    os << "]}";
+
+    // Escape the es
+    return os;
+}
+
+constexpr std::ostream& operator<<(std::ostream& os, const regez_error& re)
+{
+    switch (re)
+    {
+        case REGEZ_OK:
+            os << "REGEZ_OK";
+            break;
+        case REGEZ_INVALID_GROUP:
+            os << "REGEZ_INVALID_GROUP";
+            break;
+        case REGEZ_INVALID_MATCH:
+            os << "REGEZ_INVALID_MATCH";
+            break;
+        case REGEZ_INVALID_TOKEN_IN_MATCH:
+            os << "REGEZ_INVALID_TOKEN_IN_MATCH";
+            break;
+        case REGEZ_EMPTY:
+            os << "REGEZ_EMPTY";
+            break;
+        default:
+            os << "UNKNOWN";
+            break;
+    }
+    return os;
 }
 
 } // namespace regex
@@ -739,8 +941,30 @@ struct std::formatter<regez::regex<C>>
     auto format(const regez::regex<C>& obj, std::format_context& ctx) const
     {
         return std::format_to(ctx.out(),
-                "{{ \"regex\": {{ \"start\": {}, \"states\": {} }} }}",
-                obj.start, obj.states);
+                "{{ \"regex\": {{ \"start\": {}, \"end\": {}, \"regexes\": {} }} }}",
+                obj.start, obj.end, obj.regexes);
+    }
+};
+
+template <typename C>
+struct std::formatter<std::vector<regez::regex<C>>>
+{
+    constexpr auto parse(std::format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(const std::vector<regez::regex<C>>& obj,
+                    std::format_context& ctx) const
+    {
+        std::format_to(ctx.out(), "[");
+        auto it = obj.begin();
+        if (it != obj.end())
+            std::format_to(ctx.out(), "{}", *it++);
+        for (; it != obj.end(); ++it)
+                std::format_to(ctx.out(), ", {}", *it);
+        std::format_to(ctx.out(), "]");
+        return ctx.out();
     }
 };
 
