@@ -204,6 +204,7 @@ struct regex
     void add_regex(regex<C> s = regex<C>());
 
     static regez_error check_correctness(const C& reg, grammar<C>* g);
+    static std::optional<C> expand(const C& reg, grammar<C>* g);
     static std::optional<C> infix_to_postfix(const C& reg, grammar<C>* g);
     static std::optional<regex<C>> thompson_algorithm(const C& reg, grammar<C>* g);
 private:
@@ -225,9 +226,13 @@ regex<C>::regex(C reg, grammar<C>* g)
         throw std::runtime_error("Invalid regex.");
     }
 
-    // TODO: Regex expansion
+    std::optional<C> exp = expand(reg, g);
+    if (!exp.has_value())
+    {
+        throw std::runtime_error("Error during regex expansion.");
+    }
 
-    std::optional<C> pos = infix_to_postfix(reg, g);
+    std::optional<C> pos = infix_to_postfix(exp.value(), g);
     if (!pos.has_value())
     {
         throw std::runtime_error("Error during regex conversion to postfix notation.");
@@ -348,6 +353,86 @@ regez_error regex<C>::check_correctness(const C& reg, grammar<C>* g)
         return REGEZ_INVALID_MATCH;
 
     return REGEZ_OK;
+}
+
+// expand match groups
+template<typename C>
+std::optional<C> regex<C>::expand(const C& reg, grammar<C>* g)
+{
+    if (reg.empty())
+        return std::nullopt;
+
+    C expanded;
+    if (reg.size() == 1)
+    {
+        expanded += reg;
+        return expanded;
+    }
+
+    if (!g->tokens[REGEZ_OR].has_value() ||
+        !g->tokens[REGEZ_OPEN_MATCH].has_value() ||
+        !g->tokens[REGEZ_CLOSE_MATCH].has_value())
+        return std::nullopt;
+
+    bool is_in_match = false;
+    bool first = false;
+    bool escaped = false;
+    for (auto& r : reg)
+    {
+        bool is_token = false;
+        if (escaped && is_in_match && !first)
+        {
+            expanded += g->tokens[REGEZ_OR].value();
+            expanded += g->tokens[REGEZ_ESCAPE].value();
+            expanded += r;
+            escaped = false;
+            continue;
+        }
+        else if (escaped && is_in_match)
+        {
+            expanded += g->tokens[REGEZ_ESCAPE].value();
+            expanded += r;
+            escaped = false;
+            first = false;
+            continue;
+        }
+        for (int i = 0; i < _REGEZ_MAX; i++)
+        {
+            if (g->tokens[i].has_value() && g->tokens[i].value() == r)
+            {
+                is_token = true;
+                switch ((grammar_enum)i) // assuming token has value
+                {
+                    case REGEZ_OPEN_MATCH:
+                        first = true;
+                        is_in_match = true;
+                        break;
+                    case REGEZ_CLOSE_MATCH:
+                        is_in_match = false;
+                        break;
+                    case REGEZ_ESCAPE:
+                        escaped = !escaped;
+                        break;
+                    default:
+                        if (is_in_match && !first)
+                            expanded += g->tokens[REGEZ_OR].value();
+                        first = false;
+                        expanded += r;
+                        break;
+                }
+                break;
+            }
+        }
+        if (is_in_match && !is_token && !first && !escaped)
+            expanded += g->tokens[REGEZ_OR].value();
+        if (!is_token && !escaped)
+        {
+            first = false;
+            expanded += r;
+        }
+    }
+
+    return expanded;
 }
 
 #define CHECK_PRECEDENCE(TOKEN) \
