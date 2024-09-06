@@ -69,6 +69,48 @@ void test_correctness()
     ASSERT(res == regez::REGEZ_INVALID_GROUP);
 }
 
+void test_expansion()
+{
+    regez::grammar<std::string> g;
+    g.set_token('(', regez::REGEZ_OPEN_GROUP);
+    g.set_token(')', regez::REGEZ_CLOSE_GROUP);
+    g.set_token('[', regez::REGEZ_OPEN_MATCH);
+    g.set_token(']', regez::REGEZ_CLOSE_MATCH);
+    g.set_token('|', regez::REGEZ_OR);
+    g.set_token('*', regez::REGEZ_ANY);
+    g.set_token('.', regez::REGEZ_CONCAT);
+    g.set_token('+', regez::REGEZ_ONE_OR_MORE);
+    g.set_token('\\', regez::REGEZ_ESCAPE);
+
+    auto r = regez::regex<std::string>::expand(std::string("a"), &g);
+    ASSERT(r.has_value());
+    ASSERT_EQ(r.value(), "a");
+    r = regez::regex<std::string>::expand(std::string("ab"), &g);
+    ASSERT(r.has_value());
+    ASSERT_EQ(r.value(), "ab");
+    r = regez::regex<std::string>::expand(std::string("abc"), &g);
+    ASSERT(r.has_value());
+    ASSERT_EQ(r.value(), "abc");
+    r = regez::regex<std::string>::expand(std::string("a|b"), &g);
+    ASSERT(r.has_value());
+    ASSERT_EQ(r.value(), "a|b");
+    r = regez::regex<std::string>::expand(std::string("[ab]"), &g);
+    ASSERT(r.has_value());
+    ASSERT_EQ(r.value(), "a|b");
+    r = regez::regex<std::string>::expand(std::string("[ab\\.c]"), &g);
+    ASSERT(r.has_value());
+    ASSERT_EQ(r.value(), "a|b|\\.|c");
+    r = regez::regex<std::string>::expand(std::string("(a|b)*"), &g);
+    ASSERT(r.has_value());
+    ASSERT_EQ(r.value(), "(a|b)*");
+    r = regez::regex<std::string>::expand(std::string("[abc\\[de].f.g"), &g);
+    ASSERT(r.has_value());
+    ASSERT_EQ(r.value(), "a|b|c|\\[|d|e.f.g");
+    r = regez::regex<std::string>::expand(std::string("[\\.abc].d"), &g);
+    ASSERT(r.has_value());
+    ASSERT_EQ(r.value(), "\\.|a|b|c.d");
+}
+
 void test_infix_to_postfix()
 {
     // Define the regex grammar
@@ -284,6 +326,7 @@ int main()
 {
     test_state();
     test_correctness();
+    test_expansion();
     test_infix_to_postfix();
     test_nfa();
     test_print();
