@@ -187,50 +187,69 @@ void test_infix_to_postfix()
 
 void test_nfa_value()
 {
-    auto r = regez::regex_from_value<std::string>('a');
+    auto r = regez::regex<std::string>();
+    regez::regex<std::string>* a = r.regex_from_value('a');
     ASSERT(r.start.transitions.size() == 1);
     ASSERT(r.start.transitions[0].condition.has_value());
     ASSERT_EQ(r.start.transitions[0].condition.value(), 'a');
-    ASSERT(r.start.transitions[0].to == &r.end);
+    ASSERT(*r.start.transitions[0].to == r.end);
 }
 
 void test_nfa_or()
 {
-    auto a = regez::regex_from_value<std::string>('a');
-    auto b = regez::regex_from_value<std::string>('b');
-    regez::regex<std::string> r = regez::regex_or(a, b);
+    auto r = regez::regex<std::string>();
+    regez::regex<std::string>* a = r.regex_from_value('a');
+    regez::regex<std::string>* b = r.regex_from_value('b');
+    auto* _ = r.regex_or(*a, *b);
     ASSERT(r.start.transitions.size() == 2);
     ASSERT(!r.start.transitions[0].condition.has_value());
-    ASSERT(*r.start.transitions[0].to == a.start);
+    ASSERT(*r.start.transitions[0].to == a->start);
     ASSERT(!r.start.transitions[1].condition.has_value());
-    ASSERT(*r.start.transitions[1].to == b.start);
+    ASSERT(*r.start.transitions[1].to == b->start);
     auto a_start = r.start.transitions[0].to;
     auto b_start = r.start.transitions[1].to;
-    ASSERT(*a_start == a.start);
-    ASSERT(*b_start == b.start);
+    ASSERT(*a_start == a->start);
+    ASSERT(*b_start == b->start);
 }
 
 void test_nfa_concat()
 {
-    auto a = regez::regex_from_value<std::string>('a');
-    auto b = regez::regex_from_value<std::string>('b');
-    regez::regex<std::string> r = regez::regex_concat(a, b);
+    auto r = regez::regex<std::string>();
+    regez::regex<std::string>* a = r.regex_from_value('a');
+    regez::regex<std::string>* b = r.regex_from_value('b');
+    auto* _ = r.regex_concat(*a, *b);
     ASSERT(r.start.transitions.size() == 1);
     ASSERT(!r.start.transitions[0].condition.has_value());
-    ASSERT(*r.start.transitions[0].to == a.start);
+    ASSERT(*r.start.transitions[0].to == a->start);
     auto a_start = r.start.transitions[0].to;
-    ASSERT(*a_start == a.start);
+    ASSERT(*a_start == a->start);
 }
 
 void test_nfa_any()
 {
-    auto a = regez::regex_from_value<std::string>('a');
-    regez::regex<std::string> r = regez::regex_any(a);
+    auto r = regez::regex<std::string>();
+    regez::regex<std::string>* a = r.regex_from_value('a');
+    auto* _ = r.regex_any(*a);
     ASSERT(r.start.transitions.size() == 2);
     ASSERT(!r.start.transitions[0].condition.has_value());
-    ASSERT(*r.start.transitions[0].to == a.start);
+    ASSERT(*r.start.transitions[0].to == a->start);
     ASSERT(!r.start.transitions[1].condition.has_value());
     ASSERT(*r.start.transitions[1].to == r.end);
+}
+
+void test_nfa_one_or_more()
+{
+    auto r = regez::regex<std::string>();
+    regez::regex<std::string>* a = r.regex_from_value('a');
+    auto* _ = r.regex_one_or_more(*a);
+    ASSERT(r.start.transitions.size() == 1);
+    ASSERT(!r.start.transitions[0].condition.has_value());
+    ASSERT(*r.start.transitions[0].to == a->start);
+    ASSERT(a->end.transitions.size() == 2);
+    ASSERT(!a->end.transitions[0].condition.has_value());
+    ASSERT(*a->end.transitions[0].to == a->start);
+    ASSERT(!a->end.transitions[1].condition.has_value());
+    ASSERT(*a->end.transitions[1].to == r.end);
 }
 
 void test_thompson_algorithm()
@@ -246,28 +265,13 @@ void test_thompson_algorithm()
     g.set_token('+', regez::REGEZ_ONE_OR_MORE);
     g.set_token('\\', regez::REGEZ_ESCAPE);
     
-
-    auto reg = regez::regex<std::string>::thompson_algorithm(std::string(""), &g);
-    ASSERT(!reg.has_value());
-    reg = regez::regex<std::string>::thompson_algorithm(std::string("a"), &g);
-    ASSERT(reg.has_value());
+    auto r = regez::regex<std::string>();
+    auto old = r;
+    r.set_grammar(&g);
+    r.thompson_algorithm(std::string("a"));
+    ASSERT(old.start != r.start);
 }
 
-void test_nfa_one_or_more()
-{
-    auto a = regez::regex_from_value<std::string>('a');
-    regez::regex<std::string> r = regez::regex_one_or_more(a);
-    ASSERT(r.start.transitions.size() == 1);
-    ASSERT(!r.start.transitions[0].condition.has_value());
-    ASSERT(*r.start.transitions[0].to == a.start);
-    auto& reg = r.regexes[0];
-    ASSERT(reg == a);
-    ASSERT(reg.end.transitions.size() == 2);
-    ASSERT(!reg.end.transitions[0].condition.has_value());
-    ASSERT(*reg.end.transitions[0].to == a.start);
-    ASSERT(!reg.end.transitions[1].condition.has_value());
-    ASSERT(*reg.end.transitions[1].to == r.end);
-}
 
 void test_nfa()
 {
@@ -277,6 +281,32 @@ void test_nfa()
     test_nfa_any();
     test_nfa_one_or_more();
     test_thompson_algorithm();
+}
+
+void test_dfa()
+{
+    regez::grammar<std::string> g;
+    g.set_token('(', regez::REGEZ_OPEN_GROUP);
+    g.set_token(')', regez::REGEZ_CLOSE_GROUP);
+    g.set_token('[', regez::REGEZ_OPEN_MATCH);
+    g.set_token(']', regez::REGEZ_CLOSE_MATCH);
+    g.set_token('|', regez::REGEZ_OR);
+    g.set_token('*', regez::REGEZ_ANY);
+    g.set_token('.', regez::REGEZ_CONCAT);
+    g.set_token('+', regez::REGEZ_ONE_OR_MORE);
+    g.set_token('\\', regez::REGEZ_ESCAPE);
+
+    auto r = regez::regex<std::string>();
+    r.set_grammar(&g);
+    r.thompson_algorithm(std::string("a"));
+    r.calculate_dfa();
+    ASSERT(r.start.state_closure.states.size() > 0);
+
+    r = regez::regex<std::string>();
+    r.set_grammar(&g);
+    r.thompson_algorithm(std::string("ab|"));
+    r.calculate_dfa();
+    ASSERT(r.start.state_closure.states.size() > 0);
 }
 
 // test if both printing via stream and std::format work
@@ -329,6 +359,7 @@ int main()
     test_expansion();
     test_infix_to_postfix();
     test_nfa();
+    test_dfa();
     test_print();
 
     if (errors > 0)
