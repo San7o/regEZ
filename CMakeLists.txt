@@ -11,7 +11,7 @@ option(REGEZ_BUILD_DEBUG "Build with debug flags" OFF)
 
 add_executable(regez src/main.cpp)
 target_include_directories(regez PRIVATE include)
-target_compile_options(regez PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_compile_options(regez PRIVATE -Wall -Wextra -Wpedantic -Werror -Wshadow -Wconversion)
 
 if (REGEZ_BUILD_TESTS)
     add_executable(tests tests/regez_tests.cpp)

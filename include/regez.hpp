@@ -57,6 +57,12 @@ template<typename C>
 struct transition;
 
 template<typename C>
+struct closure;
+
+template<typename C>
+struct grammar;
+
+template<typename C>
 struct regex;
 
 template<typename C>
@@ -65,44 +71,60 @@ struct transition
     using iter_type = typename C::value_type;
     state<C>* from;
     state<C>* to;
-    bool is_epsilon;
     std::optional<iter_type> condition;
 
     transition() = default;
-    transition(state<C>* from, state<C>* to, bool is_epsilon = false, std::optional<iter_type> condition = std::nullopt);
+    transition(state<C>* from, state<C>* to,
+                    std::optional<iter_type> condition = std::nullopt);
 
     void set_condition(iter_type condition);
-    void set_epsilon(bool is_epsilon);
     void set_from(state<C>* from);
     void set_to(state<C>* to);
 };
 
 template<typename C>
-transition<C>::transition(state<C>* from, state<C>* to, bool is_epsilon, std::optional<iter_type> condition)
-        : from(from), to(to), is_epsilon(is_epsilon), condition(condition) {}
+transition<C>::transition(state<C>* state_from, state<C>* state_to,
+                std::optional<iter_type> state_condition)
+        : from(state_from), to(state_to), condition(state_condition) {}
 
 template<typename C>
-void transition<C>::set_condition(iter_type condition)
+void transition<C>::set_condition(iter_type state_condition)
 {
-    this->condition = condition;
+    this->condition = state_condition;
 }
 
 template<typename C>
-void transition<C>::set_epsilon(bool is_epsilon)
+void transition<C>::set_from(state<C>* state_from)
 {
-    this->is_epsilon = is_epsilon;
+    this->from = state_from;
 }
 
 template<typename C>
-void transition<C>::set_from(state<C>* from)
-{
-    this->from = from;
-}
-
-template<typename C>
-void transition<C>::set_to(state<C>* to)
+void transition<C>::set_to(state<C>* state_to)
 {
     this->to = to;
+}
+
+template<typename C>
+struct closure
+{
+    using iter_type = typename C::value_type;
+    state<C>* start;
+    std::vector<std::pair<const state<C>*, iter_type>> states;
+
+    closure() = default;
+    closure(state<C>* start);
+    void add_state(const state<C>* s, iter_type c);
+};
+
+template<typename C>
+closure<C>::closure(state<C>* state_start)
+        : start(state_start), states({}) {}
+
+template<typename C>
+void closure<C>::add_state(const state<C>* s, iter_type c)
+{
+    this->states.push_back(std::make_pair(s, c));
 }
 
 template<typename C>
@@ -111,11 +133,12 @@ struct state
     using iter_type = typename C::value_type;
     bool is_final;
     std::vector<transition<C>> transitions;
+    closure<C> state_closure;
 
     state();
     state(bool is_final);
     int get_id() const;
-    void add_transition(state<C>* to, bool is_epsilon = false, std::optional<iter_type> condition = std::nullopt);
+    void add_transition(state<C>* to, std::optional<iter_type> condition = std::nullopt);
 
 private:
     int id_;
@@ -133,8 +156,8 @@ state<C>::state()
 }
 
 template<typename C>
-state<C>::state(bool is_final)
-        : is_final(is_final), transitions({})
+state<C>::state(bool state_is_final)
+        : is_final(state_is_final), transitions({})
 {
     this->id_ = id_count++;
 }
@@ -146,9 +169,9 @@ int state<C>::get_id() const
 }
 
 template<typename C>
-void state<C>::add_transition(state<C>* to, bool is_epsilon, std::optional<typename C::value_type> condition)
+void state<C>::add_transition(state<C>* to, std::optional<typename C::value_type> condition)
 {
-    this->transitions.push_back(transition<C>(this, to, is_epsilon, condition));
+    this->transitions.push_back(transition<C>(this, to, condition));
 }
 
 // In order of precedence (lowest to highest)
@@ -202,22 +225,42 @@ struct regex
     regex(C reg, grammar<C>* g);
     regex(state<C> start, state<C> end, std::vector<regex<C>> regexes, grammar<C>* g);
     void add_regex(regex<C> s = regex<C>());
+    void set_grammar(grammar<C>* g);
 
+    // TODO: make non static
     static regez_error check_correctness(const C& reg, grammar<C>* g);
     static std::optional<C> expand(const C& reg, grammar<C>* g);
     static std::optional<C> infix_to_postfix(const C& reg, grammar<C>* g);
-    static std::optional<regex<C>> thompson_algorithm(const C& reg, grammar<C>* g);
+    void thompson_algorithm(const C& reg);
+    void calculate_dfa();
+
+#ifndef REGEZ_DEBUG
 private:
+#endif
+    regex<C>* regex_from_value(const typename C::value_type& a);
+    regex<C>* regex_or(regex<C>& op1, regex<C>& op2);
+    regex<C>* regex_concat(regex<C>& op1, regex<C>& op2);
+    regex<C>* regex_any(regex<C>& op);
+    regex<C>* regex_one_or_more(regex<C>& op);
+
     grammar<C>* _grammar;
 };
 
 template<typename C>
-regex<C>::regex(state<C> start, state<C> end, std::vector<regex<C>> regexes, grammar<C>* g)
-        : start(start), end(end), regexes(regexes), _grammar(g) {}
+regex<C>::regex(state<C> state_start, state<C> state_end, std::vector<regex<C>> vec_regexes, grammar<C>* g)
+        : start(state_start), end(state_end), regexes(vec_regexes), _grammar(g) {}
+
+template<typename C>
+void regex<C>::set_grammar(grammar<C>* g)
+{
+    this->_grammar = g;
+}
 
 template<typename C>
 regex<C>::regex(C reg, grammar<C>* g)
 {
+    this->_grammar = g;
+
     DEBUG("Regex: {}\n", reg);
     regez_error err = check_correctness(reg, g);
     if (err != REGEZ_OK)
@@ -239,18 +282,12 @@ regex<C>::regex(C reg, grammar<C>* g)
     }
     DEBUG("Postfix: {}\n", pos.value());
 
-    std::optional<regex<C>> nfa = thompson_algorithm(pos.value(), g);
-    if (!nfa.has_value())
-    {
-        throw std::runtime_error("Error during regex conversion to NFA.");
-    }
-    DEBUG("NFA: {}\n", nfa.value());
+    this->thompson_algorithm(pos.value());
+    this->calculate_dfa();
 
-    // TODO: NFA to DFA
+    DEBUG("Regex done\n");
 
     // TODO: DFA to minimized DFA
-
-    *this = nfa.value();
 }
 
 template<typename C>
@@ -263,6 +300,7 @@ void regex<C>::add_regex(regex<C> s)
 // - correct number of open and close groups
 // - correct number of open and close matches
 // - no tokens inside matches
+// - TODO: more checks
 template<typename C>
 regez_error regex<C>::check_correctness(const C& reg, grammar<C>* g)
 {
@@ -531,139 +569,190 @@ std::optional<C> regex<C>::infix_to_postfix(const C& reg, grammar<C>* g)
 }
 
 template<typename C>
-regex<C> regex_from_value(const typename C::value_type& a)
+regex<C>* regex<C>::regex_from_value(const typename C::value_type& a)
 {
-    regex<C> out;
-    out.start.add_transition(&out.end, false,
+    this->regexes.push_back(regex<C>());
+    regex<C>* r = &this->regexes.back();
+    r->start.add_transition(&r->end,
                     std::optional<typename C::value_type>(a));
+
+    this->start = r->start;
+    this->end = r->end;
+    return r;
+}
+
+template<typename C>
+regex<C>* regex<C>::regex_or(regex<C>& op1, regex<C>& op2)
+{
+    this->add_regex(regex<C>());
+    regex<C>* out = &this->regexes.back();
+    out->start.add_transition(&op1.start);
+    out->start.add_transition(&op2.start);
+    op1.end.add_transition(&out->end);
+    op2.end.add_transition(&out->end);
+
+    this->start = out->start;
+    this->end = out->end;
     return out;
 }
 
 template<typename C>
-regex<C> regex_or(const regex<C>& op1, const regex<C>& op2)
+regex<C>* regex<C>::regex_concat(regex<C>& op1, regex<C>& op2)
 {
-    regex<C> out;
-    out.add_regex(op1);
-    out.add_regex(op2);
-    regex<C>& a = out.regexes[0];
-    regex<C>& b = out.regexes[1];
-    out.start.add_transition(&a.start, true);
-    out.start.add_transition(&b.start, true);
-    a.end.add_transition(&out.end, false, std::nullopt);
-    b.end.add_transition(&out.end, false, std::nullopt);
+    this->add_regex(regex<C>());
+    regex<C>* out = &this->regexes.back();
+    out->start.add_transition(&op1.start);
+    op1.end.add_transition(&op2.start);
+    op2.end.add_transition(&out->end);
+
+    this->start = out->start;
+    this->end = out->end;
     return out;
 }
 
 template<typename C>
-regex<C> regex_concat(const regex<C>& op1, const regex<C>& op2)
+regex<C>* regex<C>::regex_any(regex<C>& op)
 {
-    regex<C> out;
-    out.add_regex(op1);
-    out.add_regex(op2);
-    regex<C>& a = out.regexes[0];
-    regex<C>& b = out.regexes[1];
-    out.start.add_transition(&a.start, true);
-    a.end.add_transition(&b.start, true);
+    this->add_regex(regex<C>());
+    regex<C>* out = &this->regexes.back();
+    out->start.add_transition(&op.start);
+    out->start.add_transition(&out->end);
+    op.end.add_transition(&out->start);
+
+    this->start = out->start;
+    this->end = out->end;
     return out;
 }
 
 template<typename C>
-regex<C> regex_any(const regex<C>& op)
+regex<C>* regex<C>::regex_one_or_more(regex<C>& op)
 {
-    regex<C> out;
-    out.add_regex(op);
-    regex<C>& a = out.regexes[0];
-    out.start.add_transition(&a.start, true);
-    out.start.add_transition(&out.end, false, std::nullopt);
-    a.end.add_transition(&a.start, true);
+    this->add_regex(regex<C>());
+    regex<C>* out = &this->regexes.back();
+    out->start.add_transition(&op.start);
+    op.end.add_transition(&op.start);
+    op.end.add_transition(&out->end);
+
+    this->start = out->start;
+    this->end = out->end;
     return out;
 }
 
 template<typename C>
-regex<C> regex_one_or_more(const regex<C>& op)
+void regex<C>::thompson_algorithm(const C& reg)
 {
-    regex<C> out;
-    out.add_regex(op);
-    regex<C>& a = out.regexes[0];
-    out.start.add_transition(&a.start, true);
-    a.end.add_transition(&a.start, true);
-    a.end.add_transition(&out.end, false, std::nullopt);
-    return out;
-}
-
-template<typename C>
-std::optional<regex<C>> regex<C>::thompson_algorithm(const C& reg, grammar<C>* g)
-{
-    if (reg.empty())
-        return std::nullopt;
+    if (this->_grammar == nullptr)
+        return;
 
     using iter_type = typename C::value_type;
-    regex<C> out;
-    std::stack<regex<C>> regex_stack;
-
+    std::stack<regex<C>*> regex_stack;
     for (const iter_type& r : reg)
     {
         bool found = false;
         for (int i = 0; i < _REGEZ_MAX; i++)
         {
-            if (g->tokens[i].has_value() && g->tokens[i].value() == r)
+            if (this->_grammar->tokens[i].has_value() && this->_grammar->tokens[i].value() == r)
             {
                 found = true;
                 switch ((grammar_enum)i)
                 {
                     case REGEZ_CONCAT:
                         if (regex_stack.size() < 2)
-                            return std::nullopt;
                         {
-                            regex<C> b = regex_stack.top();
+                            return;
+                        }
+                        {
+                            regex<C>* op1 = regex_stack.top();
                             regex_stack.pop();
-                            regex<C> a = regex_stack.top();
+                            regex<C>* op2 = regex_stack.top();
                             regex_stack.pop();
-                            regex_stack.push(regex_concat(a, b));
+                            regex_stack.push(this->regex_concat(*op1, *op2));
                         }
                         break;
                     case REGEZ_OR:
                         if (regex_stack.size() < 2)
-                            return std::nullopt;
                         {
-                            regex<C> b = regex_stack.top();
+                            return;
+                        }
+                        {
+                            regex<C>* op1 = regex_stack.top();
                             regex_stack.pop();
-                            regex<C> a = regex_stack.top();
+                            regex<C>* op2 = regex_stack.top();
                             regex_stack.pop();
-                            regex_stack.push(regex_or(a, b));
+                            regex_stack.push(this->regex_or(*op1, *op2));
                         }
                         break;
                     case REGEZ_ANY:
                         if (regex_stack.empty())
-                            return std::nullopt;
                         {
-                            regex<C> a = regex_stack.top();
+                            return;
+                        }
+                        {
+                            regex<C>* op = regex_stack.top();
                             regex_stack.pop();
-                            regex_stack.push(regex_any(a));
+                            regex_stack.push(this->regex_any(*op));
                         }
                         break;
                     case REGEZ_ONE_OR_MORE:
                         if (regex_stack.empty())
-                            return std::nullopt;
                         {
-                            regex<C> a = regex_stack.top();
+                            return;
+                        }
+                        {
+                            regex<C>* op = regex_stack.top();
                             regex_stack.pop();
-                            regex_stack.push(regex_one_or_more(a));
+                            regex_stack.push(this->regex_one_or_more(*op));
                         }
                         break;
                     default:
-                        return std::nullopt;
-                        break;
+                        return;
                 }
                 break;
             }
         }
         if (!found)
-            regex_stack.push(regex_from_value<C>(r));
+            regex_stack.push(this->regex_from_value(r));
     }
-    out = regex_stack.top();
+}
 
-    return out;
+template<typename C>
+void regex<C>::calculate_dfa()
+{
+    std::stack<state<C>*> current_closure;
+    std::stack<state<C>*> next_closure;
+    std::vector<int> visited_states;
+    next_closure.push(&this->start);
+    while (!next_closure.empty())
+    {
+        state<C>* current = next_closure.top();
+        next_closure.pop();
+        current_closure.push(current);
+        while (!current_closure.empty())
+        {
+            state<C>* tmp = current_closure.top();
+            current_closure.pop();
+            for (const transition<C> t : tmp->transitions)
+            {
+                if (!t.condition.has_value()) // epsilon transition
+                {
+                    if (std::find(visited_states.begin(), visited_states.end(),
+                                            t.to->get_id()) != visited_states.end())
+                        continue;
+                    current_closure.push(t.to);
+                    visited_states.push_back(t.to->get_id());
+                }
+                else
+                {
+                    tmp->state_closure.add_state(t.to, t.condition.value());
+                    if (std::find(visited_states.begin(), visited_states.end(),
+                                            t.to->get_id()) != visited_states.end())
+                        continue;
+                    next_closure.push(t.to);
+                    visited_states.push_back(t.to->get_id());
+                }
+            }
+        }
+    }
 }
 
 template<typename C>
