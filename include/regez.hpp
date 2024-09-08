@@ -214,6 +214,8 @@ enum regez_error
     _REGEZ_ERROR_MAX
 };
 
+typedef long unsigned int regex_id;
+
 template<typename C>
 struct regex
 {
@@ -237,11 +239,11 @@ struct regex
 #ifndef REGEZ_DEBUG
 private:
 #endif
-    regex<C>* regex_from_value(const typename C::value_type& a);
-    regex<C>* regex_or(regex<C>& op1, regex<C>& op2);
-    regex<C>* regex_concat(regex<C>& op1, regex<C>& op2);
-    regex<C>* regex_any(regex<C>& op);
-    regex<C>* regex_one_or_more(regex<C>& op);
+    regex_id regex_from_value(const typename C::value_type& a);
+    regex_id regex_or(regex_id& op1, regex_id& op2);
+    regex_id regex_concat(regex_id& op1, regex_id& op2);
+    regex_id regex_any(regex_id& op);
+    regex_id regex_one_or_more(regex_id& op);
 
     grammar<C>* _grammar;
 };
@@ -569,73 +571,79 @@ std::optional<C> regex<C>::infix_to_postfix(const C& reg, grammar<C>* g)
 }
 
 template<typename C>
-regex<C>* regex<C>::regex_from_value(const typename C::value_type& a)
+regex_id regex<C>::regex_from_value(const typename C::value_type& a)
 {
-    this->regexes.push_back(regex<C>());
-    regex<C>* r = &this->regexes.back();
-    r->start.add_transition(&r->end,
+    this->add_regex();
+    regex<C>& r = this->regexes.back();
+    r.start.add_transition(&r.end,
                     std::optional<typename C::value_type>(a));
 
-    this->start = r->start;
-    this->end = r->end;
-    return r;
+    this->start = r.start;
+    this->end = r.end;
+    return this->regexes.size() - 1;
 }
 
 template<typename C>
-regex<C>* regex<C>::regex_or(regex<C>& op1, regex<C>& op2)
+regex_id regex<C>::regex_or(regex_id& op1, regex_id& op2)
 {
-    this->add_regex(regex<C>());
-    regex<C>* out = &this->regexes.back();
-    out->start.add_transition(&op1.start);
-    out->start.add_transition(&op2.start);
-    op1.end.add_transition(&out->end);
-    op2.end.add_transition(&out->end);
+    this->add_regex();
+    regex<C>& out = this->regexes.back();
+    regex<C>& op1_ = this->regexes[op1];
+    regex<C>& op2_ = this->regexes[op2];
+    out.start.add_transition(&op1_.start);
+    out.start.add_transition(&op2_.start);
+    op1_.end.add_transition(&out.end);
+    op2_.end.add_transition(&out.end);
 
-    this->start = out->start;
-    this->end = out->end;
-    return out;
+    this->start = out.start;
+    this->end = out.end;
+    return this->regexes.size() - 1;
 }
 
 template<typename C>
-regex<C>* regex<C>::regex_concat(regex<C>& op1, regex<C>& op2)
+regex_id regex<C>::regex_concat(regex_id& op1, regex_id& op2)
 {
-    this->add_regex(regex<C>());
-    regex<C>* out = &this->regexes.back();
-    out->start.add_transition(&op1.start);
-    op1.end.add_transition(&op2.start);
-    op2.end.add_transition(&out->end);
+    this->add_regex();
+    regex<C>& out = this->regexes.back();
+    regex<C>& op1_ = this->regexes[op1];
+    regex<C>& op2_ = this->regexes[op2];
+    out.start.add_transition(&op1_.start);
+    op1_.end.add_transition(&op2_.start);
+    op2_.end.add_transition(&out.end);
 
-    this->start = out->start;
-    this->end = out->end;
-    return out;
+    this->start = out.start;
+    this->end = out.end;
+    return this->regexes.size() - 1;
 }
 
 template<typename C>
-regex<C>* regex<C>::regex_any(regex<C>& op)
+regex_id regex<C>::regex_any(regex_id& op)
 {
-    this->add_regex(regex<C>());
-    regex<C>* out = &this->regexes.back();
-    out->start.add_transition(&op.start);
-    out->start.add_transition(&out->end);
-    op.end.add_transition(&out->start);
+    this->add_regex();
+    regex<C>& out = this->regexes.back();
+    regex<C>& op_ = this->regexes[op];
+    out.start.add_transition(&op_.start);
+    out.start.add_transition(&out.end);
+    op_.end.add_transition(&out.start);
 
-    this->start = out->start;
-    this->end = out->end;
-    return out;
+    this->start = out.start;
+    this->end = out.end;
+    return this->regexes.size() - 1;
 }
 
 template<typename C>
-regex<C>* regex<C>::regex_one_or_more(regex<C>& op)
+regex_id regex<C>::regex_one_or_more(regex_id& op)
 {
-    this->add_regex(regex<C>());
-    regex<C>* out = &this->regexes.back();
-    out->start.add_transition(&op.start);
-    op.end.add_transition(&op.start);
-    op.end.add_transition(&out->end);
+    this->add_regex();
+    regex<C>& out = this->regexes.back();
+    regex<C>& op_ = this->regexes[op];
+    out.start.add_transition(&op_.start);
+    op_.end.add_transition(&op_.start);
+    op_.end.add_transition(&out.end);
 
-    this->start = out->start;
-    this->end = out->end;
-    return out;
+    this->start = out.start;
+    this->end = out.end;
+    return this->regexes.size() - 1;
 }
 
 template<typename C>
@@ -645,7 +653,7 @@ void regex<C>::thompson_algorithm(const C& reg)
         return;
 
     using iter_type = typename C::value_type;
-    std::stack<regex<C>*> regex_stack;
+    std::stack<regex_id> regex_stack;
     for (const iter_type& r : reg)
     {
         bool found = false;
@@ -662,11 +670,11 @@ void regex<C>::thompson_algorithm(const C& reg)
                             return;
                         }
                         {
-                            regex<C>* op1 = regex_stack.top();
+                            regex_id op1 = regex_stack.top();
                             regex_stack.pop();
-                            regex<C>* op2 = regex_stack.top();
+                            regex_id op2 = regex_stack.top();
                             regex_stack.pop();
-                            regex_stack.push(this->regex_concat(*op1, *op2));
+                            regex_stack.push(this->regex_concat(op1, op2));
                         }
                         break;
                     case REGEZ_OR:
@@ -675,11 +683,11 @@ void regex<C>::thompson_algorithm(const C& reg)
                             return;
                         }
                         {
-                            regex<C>* op1 = regex_stack.top();
+                            regex_id op1 = regex_stack.top();
                             regex_stack.pop();
-                            regex<C>* op2 = regex_stack.top();
+                            regex_id op2 = regex_stack.top();
                             regex_stack.pop();
-                            regex_stack.push(this->regex_or(*op1, *op2));
+                            regex_stack.push(this->regex_or(op1, op2));
                         }
                         break;
                     case REGEZ_ANY:
@@ -688,9 +696,9 @@ void regex<C>::thompson_algorithm(const C& reg)
                             return;
                         }
                         {
-                            regex<C>* op = regex_stack.top();
+                            regex_id op = regex_stack.top();
                             regex_stack.pop();
-                            regex_stack.push(this->regex_any(*op));
+                            regex_stack.push(this->regex_any(op));
                         }
                         break;
                     case REGEZ_ONE_OR_MORE:
@@ -699,9 +707,9 @@ void regex<C>::thompson_algorithm(const C& reg)
                             return;
                         }
                         {
-                            regex<C>* op = regex_stack.top();
+                            regex_id op = regex_stack.top();
                             regex_stack.pop();
-                            regex_stack.push(this->regex_one_or_more(*op));
+                            regex_stack.push(this->regex_one_or_more(op));
                         }
                         break;
                     default:
@@ -743,7 +751,7 @@ void regex<C>::calculate_dfa()
                 }
                 else
                 {
-                    tmp->state_closure.add_state(t.to, t.condition.value());
+                    current->state_closure.add_state(t.to, t.condition.value());
                     if (std::find(visited_states.begin(), visited_states.end(),
                                             t.to->get_id()) != visited_states.end())
                         continue;
