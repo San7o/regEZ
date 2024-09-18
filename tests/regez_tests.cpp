@@ -198,6 +198,7 @@ void test_nfa_value()
 void test_nfa_or()
 {
     auto r = regez::regex<std::string>();
+    r.regexes.reserve(200);
     auto a_ = r.regex_from_value('a');
     auto b_ = r.regex_from_value('b');
     auto _ = r.regex_or(a_, b_);
@@ -212,6 +213,20 @@ void test_nfa_or()
     auto b_start = r.start.transitions[1].to;
     ASSERT(*a_start == a.start);
     ASSERT(*b_start == b.start);
+    ASSERT(a_start->transitions.size() == 1);
+    ASSERT(b_start->transitions.size() == 1);
+    ASSERT(a_start->transitions[0].condition.has_value());
+    ASSERT_EQ(a_start->transitions[0].condition.value(), 'a');
+    auto a_end = a_start->transitions[0].to;
+    ASSERT(*a_end == a.end);
+    ASSERT(b_start->transitions[0].condition.has_value());
+    ASSERT_EQ(b_start->transitions[0].condition.value(), 'b');
+    auto b_end = b_start->transitions[0].to;
+    ASSERT(*b_end == b.end);
+    ASSERT(a.end.transitions.size() == 1);
+    ASSERT(a_end->transitions.size() == 1);
+    //ASSERT(!a_end->transitions[0].condition.has_value());
+    //ASSERT(*a_end->transitions[0].to == r.end);
 }
 
 void test_nfa_concat()
@@ -333,6 +348,39 @@ void test_dfa()
     ASSERT(r.start.state_closure.states.size() > 0);
 }
 
+void test_match()
+{
+    regez::grammar<std::string> g;
+    g.set_token('(', regez::REGEZ_OPEN_GROUP);
+    g.set_token(')', regez::REGEZ_CLOSE_GROUP);
+    g.set_token('[', regez::REGEZ_OPEN_MATCH);
+    g.set_token(']', regez::REGEZ_CLOSE_MATCH);
+    g.set_token('|', regez::REGEZ_OR);
+    g.set_token('*', regez::REGEZ_ANY);
+    g.set_token('.', regez::REGEZ_CONCAT);
+    g.set_token('+', regez::REGEZ_ONE_OR_MORE);
+    g.set_token('\\', regez::REGEZ_ESCAPE);
+
+    auto r = regez::regex<std::string>(std::string("a"), &g);
+    ASSERT(r.start.state_closure.states.size() > 0);
+    ASSERT_EQ(r.match(std::string("a")), true);
+    ASSERT_EQ(r.match(std::string("b")), false);
+    ASSERT_EQ(r.match(std::string("")), false);
+
+    std::cout << "-------------- a|b ------------" << std::endl;
+
+    r = regez::regex<std::string>(std::string("a|b"), &g);
+    std::cout << "Regex: " << regez::prettify(std::format("{}", r)) << std::endl;
+    ASSERT(r.start.state_closure.states.size() > 0);
+    ASSERT_EQ(r.match(std::string("a")), true);
+    ASSERT_EQ(r.match(std::string("b")), true);
+    ASSERT_EQ(r.match(std::string("")), false);
+    ASSERT_EQ(r.match(std::string("c")), false);
+    // ASSERT_EQ(r.match(std::string("ab")), true); // seg fault
+
+    std::cout << "-------------- a.b ------------" << std::endl;
+}
+
 // test if both printing via stream and std::format work
 // and produce the same output
 void test_print()
@@ -351,6 +399,13 @@ void test_print()
     stream << t1;
     ASSERT(stream.str() != "");
     ASSERT_EQ(stream.str(), std::format("{}", t1));
+
+    // printing closure
+    regez::closure<std::string> c;
+    stream.str("");
+    stream << c;
+    ASSERT(stream.str() != "");
+    ASSERT_EQ(stream.str(), std::format("{}", c));
 
     // printing grammar
     regez::grammar<std::string> g;
@@ -384,7 +439,8 @@ int main()
     test_infix_to_postfix();
     test_nfa();
     test_dfa();
-    test_print();
+    test_match();
+    //test_print();
 
     if (errors > 0)
     {

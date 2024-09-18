@@ -28,13 +28,18 @@
             gcc14                   # compiler
             cmake                   # build system
             valgrind                # memory debugger
+            clang-tools             # code formatting
+            gdb                     # debugger
+            doxygen                 # documentation
+            libz.dev                # compression
+            llvmPackages.libcxxClang
           ];
           shellHook = ''
               zsh
           '';
 
-          LD_LIBRARY_PATH="${pkgsFor.${system}.libz}/lib";
-          CXX="${pkgsFor.${system}.gcc14}/bin/g++";
+          LD_LIBRARY_PATH="${pkgsFor.${system}.libz.dev}";
+          CMAKE_CXX_COMPILER="${pkgsFor.${system}.gcc14}/bin/:${pkgsFor.${system}.clang_18}/bin/";
         };
     });
   };
