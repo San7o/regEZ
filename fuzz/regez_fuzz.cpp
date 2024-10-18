@@ -26,9 +26,3 @@
 
 #include <regez/regez.hpp>
 #include <valfuzz/valfuzz.hpp>
-
-FUZZME(nth_fibonacci_fuzz, "Fuzzing fibonacci function")
-{
-    auto n = (unsigned int) valfuzz::get_random<int>();
-    regez::nth_fibonacci(n % 1000);
-}

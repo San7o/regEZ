@@ -25,13 +25,10 @@
  */
 
 #include <regez/regez.hpp>
+#include <string>
 #include <valfuzz/valfuzz.hpp>
 
-TEST(nth_fibonacci_test, "Getting fibonacci numbers")
+TEST(regez_constructor, "regez constructor")
 {
-    ASSERT_EQ(regez::nth_fibonacci(0), 0);
-    ASSERT_EQ(regez::nth_fibonacci(1), 1);
-    ASSERT_EQ(regez::nth_fibonacci(2), 1);
-    ASSERT_EQ(regez::nth_fibonacci(3), 2);
-    ASSERT_EQ(regez::nth_fibonacci(10), 55);
+    regez::regex<std::string> regez(std::string("a"));
 }

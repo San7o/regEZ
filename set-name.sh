@@ -41,15 +41,15 @@ echo "Setting project name to $PROJECT_NAME"
 # ${PROJECT_NAME^^} Uppercase
 
 echo "Substituting names..."
-grep -r "mylib" -l --exclude-dir=".git/" | tr '\n' ' ' | xargs sed -i "s/mylib/${PROJECT_NAME,,}/g"
-grep -r "MYLIB" -l --exclude-dir=".git/" | tr '\n' ' ' | xargs sed -i "s/MYLIB/${PROJECT_NAME^^}/g"
+grep -r "regez" -l --exclude-dir=".git/" | tr '\n' ' ' | xargs sed -i "s/regez/${PROJECT_NAME,,}/g"
+grep -r "REGEZ" -l --exclude-dir=".git/" | tr '\n' ' ' | xargs sed -i "s/REGEZ/${PROJECT_NAME^^}/g"
 
 echo "Renaming files..."
-if [ -d "include/mylib" ]; then
-        mv include/mylib include/${PROJECT_NAME,,}
+if [ -d "include/regez" ]; then
+        mv include/regez include/${PROJECT_NAME,,}
 fi
-find . -type f -name '*mylib*' -not -path "./git" | while read file; do
-        mv "$file" "${file//mylib/$PROJECT_NAME}";
+find . -type f -name '*regez*' -not -path "./git" | while read file; do
+        mv "$file" "${file//regez/$PROJECT_NAME}";
 done
 
 echo "Done"

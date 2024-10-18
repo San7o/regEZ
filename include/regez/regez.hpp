@@ -26,10 +26,88 @@
 
 #pragma once
 
+#include <memory>
+#include <stack>
+#if __cplusplus > 201703L // C++ 17
+#include <concepts>
+#endif
+
 namespace regez
 {
 
-unsigned long long int
-nth_fibonacci(unsigned int n);
+enum operators
+{
+    regez_or = 0,
+    regez_concat,
+    regez_any,         // *
+    regez_one_or_more, // +
+    regez_open_group,  // (
+    regez_close_group, // )
+    regez_open_match,  // [
+    regez_close_match, // ]
+    regez_escape,
+    _regez_max
+};
+
+/**
+ * @brief Regular expression class
+ *
+ * @tparam Container
+ * @tparam Alloc for Container::value_type
+ *
+ * @note
+ * The container must be a sequence container with a value_type member type,
+ * must have a constructor and be iterable.
+ * The allocator must have the same value_type as the container.
+ */
+template <class Container,
+          class Alloc = std::allocator<typename Container::value_type>>
+#if __cplusplus > 201703L // C++ 20
+    requires std::default_initializable<Container>
+#endif
+class regex
+{
+  public:
+    using type = Container::value_type;
+    constexpr explicit regex(Container &&pattern) noexcept
+    {
+        static_assert(std::is_same<typename Alloc::value_type, type>::value,
+                      "The allocator must have the same value_type as the "
+                      "container");
+
+        // TODO: Check Correctness of the pattern
+        // TODO: Expand the pattern
+        // TODO: Write the pattern in reverse polish notation
+
+        [[maybe_unused]] Container rpn = infix_to_postfix(std::move(pattern));
+
+        // TODO: Thompson's construction
+        // TODO: NFA to DFA
+        // TODO: Minimize the DFA
+    }
+
+    constexpr bool match(Container &&text) noexcept
+    {
+        // TODO: Match the text with the pattern
+        return false;
+    }
+
+  private:
+    constexpr Container infix_to_postfix(Container &&pattern) const noexcept;
+};
+
+template <class Container, class Alloc>
+#if __cplusplus > 201703L // C++ 20
+    requires std::default_initializable<Container>
+#endif
+constexpr Container regex<Container, Alloc>::infix_to_postfix(
+    [[maybe_unused]] Container &&pattern) const noexcept
+{
+    Container rpn;
+
+    // TODO
+
+    return rpn;
+}
 
 } // namespace regez

@@ -12,7 +12,7 @@ set(CMAKE_USE_WIN32_THREADS_INIT 0)
 set(CMAKE_USE_PTHREADS_INIT 1)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
-set(REGEZ_SOURCES src/regez.cpp)
+set(REGEZ_SOURCES)
 set(REGEZ_HEADERS include)
 set(REGEZ_COMPILE_OPTIONS -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow)
 set(REGEZ_TEST_SOURCES
@@ -41,7 +41,7 @@ CPMAddPackage(
 CPMAddPackage(
     NAME valfuzz
     GITHUB_REPOSITORY San7o/valFuzz
-    GIT_TAG v1.0.4
+    GIT_TAG v1.1.0-alpha
     DOWNLOAD_ONLY True
 )
 if (valfuzz_ADDED)

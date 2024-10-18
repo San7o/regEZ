@@ -34,7 +34,6 @@ valfuzz_dep = valfuzz_proj.dependency('valfuzz_shared')
 # project
 
 base_sources = files(
-  'src/regez.cpp'
 )
 
 if get_option('REGEZ_BUILD_OPTIMIZED_AGGRESSIVE')

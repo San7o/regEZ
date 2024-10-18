@@ -26,8 +26,3 @@
 
 #include <regez/regez.hpp>
 #include <valfuzz/valfuzz.hpp>
-
-BENCHMARK(nth_fibonacci_benchmark, "Benchmarking fibonacci function")
-{
-    RUN_BENCHMARK(regez::nth_fibonacci(10000));
-}
