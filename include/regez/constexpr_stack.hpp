@@ -2,7 +2,7 @@
  * MIT License
  *
  * Copyright (c) 2024 Giovanni Santini
- *
+
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -24,20 +24,50 @@
  *
  */
 
-#include <regez/regez.hpp>
-#include <string>
-#include <valfuzz/valfuzz.hpp>
+#pragma once
 
-TEST(regez_constructor, "regez constructor")
+namespace regez
 {
-    regez::Vocabulary<char> vocab({'a', 'b', 'c'});
-    [[maybe_unused]] regez::Regex<std::string> regez(std::string("a"), vocab);
-}
 
-TEST(regez_constructor_constexpr, "regez constructor constexpr")
+template <typename T, std::size_t N> class ConstexprStack
 {
-    constexpr regez::Vocabulary<char> vocab({'a', 'b', 'c'});
-    constexpr std::array<char, 1> regez_str = {'a'};
-    [[maybe_unused]] constexpr regez::Regex<std::array<char, 1>, std::allocator<char>, 1> regez(
-        regez_str, vocab);
-}
+  public:
+    constexpr ConstexprStack() noexcept : m_size(0) {}
+
+    constexpr void push(const T &value) noexcept
+    {
+        m_data[m_size] = value;
+        ++m_size;
+    }
+
+    constexpr void pop() noexcept
+    {
+        --m_size;
+    }
+
+    constexpr T &top() noexcept
+    {
+        return m_data[m_size - 1];
+    }
+
+    constexpr const T &top() const noexcept
+    {
+        return m_data[m_size - 1];
+    }
+
+    constexpr std::size_t size() const noexcept
+    {
+        return m_size;
+    }
+
+    constexpr bool empty() const noexcept
+    {
+        return m_size == 0;
+    }
+
+  private:
+    std::size_t m_size;
+    T m_data[N];
+};
+
+}  // namespace regez

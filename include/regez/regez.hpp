@@ -26,27 +26,44 @@
 
 #pragma once
 
+#include <array>
 #include <memory>
 #include <stack>
 #if __cplusplus > 201703L // C++ 17
 #include <concepts>
 #endif
 
+#include <regez/constexpr_stack.hpp>
+
 namespace regez
 {
 
 enum operators
 {
-    regez_or = 0,
-    regez_concat,
-    regez_any,         // *
-    regez_one_or_more, // +
-    regez_open_group,  // (
-    regez_close_group, // )
-    regez_open_match,  // [
-    regez_close_match, // ]
-    regez_escape,
-    _regez_max
+    op_or = 0,
+    op_concat,
+    op_any,         // *
+    op_one_or_more, // +
+    op_open_group,  // (
+    op_close_group, // )
+    op_open_match,  // [
+    op_close_match, // ]
+    op_escape,
+    _op_max
+};
+
+template <class Type> class Vocabulary
+{
+  public:
+    using value_type = Type;
+    constexpr Vocabulary(
+        std::array<value_type, operators::_op_max> vocab) noexcept
+        : _vocab(vocab)
+    {
+    }
+
+  private:
+    const std::array<value_type, operators::_op_max> _vocab;
 };
 
 /**
@@ -61,52 +78,77 @@ enum operators
  * The allocator must have the same value_type as the container.
  */
 template <class Container,
-          class Alloc = std::allocator<typename Container::value_type>>
+          class Alloc = std::allocator<typename Container::value_type>,
+          std::size_t N = 0 >
 #if __cplusplus > 201703L // C++ 20
     requires std::default_initializable<Container>
 #endif
-class regex
+class Regex
 {
   public:
-    using type = Container::value_type;
-    constexpr explicit regex(Container &&pattern) noexcept
-    {
-        static_assert(std::is_same<typename Alloc::value_type, type>::value,
-                      "The allocator must have the same value_type as the "
-                      "container");
-
-        // TODO: Check Correctness of the pattern
-        // TODO: Expand the pattern
-        // TODO: Write the pattern in reverse polish notation
-
-        [[maybe_unused]] Container rpn = infix_to_postfix(std::move(pattern));
-
-        // TODO: Thompson's construction
-        // TODO: NFA to DFA
-        // TODO: Minimize the DFA
-    }
-
-    constexpr bool match(Container &&text) noexcept
-    {
-        // TODO: Match the text with the pattern
-        return false;
-    }
+    using value_type = Container::value_type;
+    constexpr explicit Regex(const Container &pattern,
+                             const Vocabulary<value_type> &vocab) noexcept;
+    constexpr bool match(const Container &text) const noexcept;
 
   private:
-    constexpr Container infix_to_postfix(Container &&pattern) const noexcept;
+    const Vocabulary<value_type> _vocab;
+    const Alloc _alloc;
+    constexpr Container
+    infix_to_postfix(const Container &pattern) const noexcept;
 };
 
-template <class Container, class Alloc>
+template <class Container, class Alloc, std::size_t N>
 #if __cplusplus > 201703L // C++ 20
     requires std::default_initializable<Container>
 #endif
-constexpr Container regex<Container, Alloc>::infix_to_postfix(
-    [[maybe_unused]] Container &&pattern) const noexcept
+constexpr Regex<Container, Alloc, N>::Regex(
+    const Container &pattern,
+    const Vocabulary<typename Container::value_type> &vocab) noexcept
+    : _vocab(vocab), _alloc()
 {
-    Container rpn;
+    static_assert(std::is_same<typename Alloc::value_type, value_type>::value,
+                  "The allocator must have the same value_type as the "
+                  "container");
 
-    // TODO
+    // TODO: Check Correctness of the pattern
+    // TODO: Expand the pattern
+    // TODO: Write the pattern in reverse polish notation
 
+    [[maybe_unused]] Container rpn = infix_to_postfix(pattern);
+
+    // TODO: Thompson's construction
+    // TODO: NFA to DFA
+    // TODO: Minimize the DFA
+}
+
+template <class Container, class Alloc, std::size_t N>
+#if __cplusplus > 201703L // C++ 20
+    requires std::default_initializable<Container>
+#endif
+constexpr bool
+Regex<Container, Alloc, N>::match(const Container &text) const noexcept
+{
+    // TODO: Match the text with the pattern
+    return false;
+}
+
+template <class Container, class Alloc, std::size_t N>
+#if __cplusplus > 201703L // C++ 20
+    requires std::default_initializable<Container>
+#endif
+constexpr Container Regex<Container, Alloc, N>::infix_to_postfix(
+    [[maybe_unused]] const Container &pattern) const noexcept
+{
+    Container rpn = Container();
+    if constexpr (N > 0)
+    {
+        [[maybe_unused]] regez::ConstexprStack<typename Container::value_type, N> stack;
+    }
+    else { // runtime
+        [[maybe_unused]] std::stack<typename Container::value_type> stack;
+
+    }
     return rpn;
 }
 
