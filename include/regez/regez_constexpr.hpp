@@ -97,8 +97,7 @@ constexpr RegexConstexpr<Container, N>::RegexConstexpr(
 
     // TODO: Thompson's construction
     // TODO: NFA to DFA
-    // TODO: Minimize the DFAtype/value mismatch at argument 2 in template
-    // parameter list for 'template<class Container, class Alloc> class Regex
+    // TODO: Minimize the DFA
 }
 
 template <class Container, std::size_t N>
@@ -124,7 +123,7 @@ constexpr Container RegexConstexpr<Container, N>::infix_to_postfix(
     [[maybe_unused]] Container postfix;
     [[maybe_unused]] regez::ConstexprStack<typename Container::value_type, N>
         ops;
-    for (const auto c : pattern)
+    for (const auto &c : pattern)
     {
         if (c == voc.get(Operators::op_or))
         {

@@ -32,44 +32,59 @@ namespace regez
 template <typename T, std::size_t N> class ConstexprStack
 {
   public:
-    constexpr ConstexprStack() noexcept : m_size(0)
-    {
-    }
-
-    constexpr void push(const T &value) noexcept
-    {
-        m_data[m_size] = value;
-        ++m_size;
-    }
-
-    constexpr void pop() noexcept
-    {
-        --m_size;
-    }
-
-    constexpr T &top() noexcept
-    {
-        return m_data[m_size - 1];
-    }
-
-    constexpr const T &top() const noexcept
-    {
-        return m_data[m_size - 1];
-    }
-
-    constexpr std::size_t size() const noexcept
-    {
-        return m_size;
-    }
-
-    constexpr bool empty() const noexcept
-    {
-        return m_size == 0;
-    }
+    constexpr explicit ConstexprStack() noexcept;
+    constexpr void push(const T &value) noexcept;
+    constexpr void pop() noexcept;
+    constexpr T &top() noexcept;
+    constexpr const T &top() const noexcept;
+    constexpr std::size_t size() const noexcept;
+    constexpr bool empty() const noexcept;
 
   private:
     std::size_t m_size;
     T m_data[N];
 };
+
+template <typename T, std::size_t N>
+constexpr ConstexprStack<T, N>::ConstexprStack() noexcept : m_size(0)
+{
+}
+
+template <typename T, std::size_t N>
+constexpr void ConstexprStack<T, N>::push(const T &value) noexcept
+{
+    m_data[m_size] = value;
+    ++m_size;
+}
+
+template <typename T, std::size_t N>
+constexpr void ConstexprStack<T, N>::pop() noexcept
+{
+    --m_size;
+}
+
+template <typename T, std::size_t N>
+constexpr T &ConstexprStack<T, N>::top() noexcept
+{
+    return m_data[m_size - 1];
+}
+
+template <typename T, std::size_t N>
+constexpr const T &ConstexprStack<T, N>::top() const noexcept
+{
+    return m_data[m_size - 1];
+}
+
+template <typename T, std::size_t N>
+constexpr std::size_t ConstexprStack<T, N>::size() const noexcept
+{
+    return m_size;
+}
+
+template <typename T, std::size_t N>
+constexpr bool ConstexprStack<T, N>::empty() const noexcept
+{
+    return m_size == 0;
+}
 
 } // namespace regez
