@@ -29,47 +29,18 @@
 namespace regez
 {
 
-template <typename T, std::size_t N> class ConstexprStack
+enum operators
 {
-  public:
-    constexpr ConstexprStack() noexcept : m_size(0)
-    {
-    }
-
-    constexpr void push(const T &value) noexcept
-    {
-        m_data[m_size] = value;
-        ++m_size;
-    }
-
-    constexpr void pop() noexcept
-    {
-        --m_size;
-    }
-
-    constexpr T &top() noexcept
-    {
-        return m_data[m_size - 1];
-    }
-
-    constexpr const T &top() const noexcept
-    {
-        return m_data[m_size - 1];
-    }
-
-    constexpr std::size_t size() const noexcept
-    {
-        return m_size;
-    }
-
-    constexpr bool empty() const noexcept
-    {
-        return m_size == 0;
-    }
-
-  private:
-    std::size_t m_size;
-    T m_data[N];
+    op_or = 0,
+    op_concat,
+    op_any,         // *
+    op_one_or_more, // +
+    op_open_group,  // (
+    op_close_group, // )
+    op_open_match,  // [
+    op_close_match, // ]
+    op_escape,
+    _op_max
 };
 
-} // namespace regez
+};

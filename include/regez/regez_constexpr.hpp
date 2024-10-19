@@ -33,66 +33,54 @@
 #include <concepts>
 #endif
 
+#include <regez/constexpr_stack.hpp>
 #include <regez/operators.hpp>
 
 namespace regez
 {
 
-template <class Type> class Vocabulary
+template <class Type> class VocabularyConstexpr
 {
   public:
     using value_type = Type;
-    explicit Vocabulary() noexcept;
-    Vocabulary &&set(operators op, value_type value) noexcept;
+    constexpr VocabularyConstexpr(
+        std::array<value_type, operators::_op_max> vocab) noexcept
+        : _vocab(vocab)
+    {
+    }
 
   private:
-    std::array<value_type, operators::_op_max> _vocab;
+    const std::array<value_type, operators::_op_max> _vocab;
 };
 
-template <class Type> Vocabulary<Type>::Vocabulary() noexcept
-{
-}
-
-template <class Type>
-Vocabulary<Type> &&Vocabulary<Type>::set(operators op,
-                                         value_type value) noexcept
-{
-    _vocab[op] = value;
-    return std::move(*this);
-}
-
-template <class Container,
-          class Alloc = std::allocator<typename Container::value_type>>
+template <class Container, std::size_t N>
 #if __cplusplus > 201703L // C++ 20
     requires std::default_initializable<Container>
 #endif
-class Regex
+class RegexConstexpr
 {
   public:
     using value_type = Container::value_type;
-    explicit Regex(const Container &pattern,
-                   const Vocabulary<value_type> &vocab) noexcept;
-    bool match(const Container &text) const noexcept;
+    constexpr explicit RegexConstexpr(
+        const Container &pattern,
+        const VocabularyConstexpr<value_type> &vocab) noexcept;
+    constexpr bool match(const Container &text) const noexcept;
 
   private:
-    const Vocabulary<value_type> _vocab;
-    const Alloc _alloc;
-    Container infix_to_postfix(const Container &pattern) const noexcept;
+    const VocabularyConstexpr<value_type> _vocab;
+    constexpr Container
+    infix_to_postfix(const Container &pattern) const noexcept;
 };
 
-template <class Container, class Alloc>
+template <class Container, std::size_t N>
 #if __cplusplus > 201703L // C++ 20
     requires std::default_initializable<Container>
 #endif
-Regex<Container, Alloc>::Regex(
+constexpr RegexConstexpr<Container, N>::RegexConstexpr(
     const Container &pattern,
-    const Vocabulary<typename Container::value_type> &vocab) noexcept
-    : _vocab(vocab), _alloc()
+    const VocabularyConstexpr<typename Container::value_type> &vocab) noexcept
+    : _vocab(vocab)
 {
-    static_assert(std::is_same<typename Alloc::value_type, value_type>::value,
-                  "The allocator must have the same value_type as the "
-                  "container");
-
     // TODO: Check Correctness of the pattern
     // TODO: Expand the pattern
     // TODO: Write the pattern in reverse polish notation
@@ -104,28 +92,27 @@ Regex<Container, Alloc>::Regex(
     // TODO: Minimize the DFA
 }
 
-template <class Container, class Alloc>
+template <class Container, std::size_t N>
 #if __cplusplus > 201703L // C++ 20
     requires std::default_initializable<Container>
 #endif
-bool Regex<Container, Alloc>::match(const Container &text) const noexcept
+constexpr bool
+RegexConstexpr<Container, N>::match(const Container &text) const noexcept
 {
     // TODO: Match the text with the pattern
     return false;
 }
 
-template <class Container, class Alloc>
+template <class Container, std::size_t N>
 #if __cplusplus > 201703L // C++ 20
     requires std::default_initializable<Container>
 #endif
-Container Regex<Container, Alloc>::infix_to_postfix(
+constexpr Container RegexConstexpr<Container, N>::infix_to_postfix(
     const Container &pattern) const noexcept
 {
-    [[maybe_unused]] std::stack<value_type, std::deque<value_type, Alloc>>
+    [[maybe_unused]] regez::ConstexprStack<typename Container::value_type, N>
         stack;
-
     // TODO: Implement the infix to postfix algorithm
-
     return pattern;
 }
 

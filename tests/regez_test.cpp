@@ -25,19 +25,23 @@
  */
 
 #include <regez/regez.hpp>
+#include <regez/regez_constexpr.hpp>
 #include <string>
 #include <valfuzz/valfuzz.hpp>
 
 TEST(regez_constructor, "regez constructor")
 {
-    regez::Vocabulary<char> vocab({'a', 'b', 'c'});
+    regez::Vocabulary<char> vocab = regez::Vocabulary<char>()
+                                        .set(regez::operators::op_or, '|')
+                                        .set(regez::operators::op_any, '*')
+                                        .set(regez::operators::op_concat, '.');
     [[maybe_unused]] regez::Regex<std::string> regez(std::string("a"), vocab);
 }
 
 TEST(regez_constructor_constexpr, "regez constructor constexpr")
 {
-    constexpr regez::Vocabulary<char> vocab({'a', 'b', 'c'});
+    constexpr regez::VocabularyConstexpr<char> vocab({'a', 'b', 'c'});
     constexpr std::array<char, 1> regez_str = {'a'};
-    [[maybe_unused]] constexpr regez::Regex<std::array<char, 1>, std::allocator<char>, 1> regez(
-        regez_str, vocab);
+    [[maybe_unused]] constexpr regez::RegexConstexpr<std::array<char, 1>, 1>
+        regez(regez_str, vocab);
 }
