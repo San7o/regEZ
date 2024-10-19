@@ -28,8 +28,6 @@
 
 #include <array>
 #include <memory>
-#include <optional>
-#include <stack>
 #if __cplusplus > 201703L // C++ 17
 #include <concepts>
 #endif
@@ -105,7 +103,8 @@ constexpr Transition<T>::Transition(StateID from, StateID to, T symbol) noexcept
 }
 
 template <class T>
-constexpr Transition<T>::Transition(StateID from, StateID to, bool epsilon) noexcept
+constexpr Transition<T>::Transition(StateID from, StateID to,
+                                    bool epsilon) noexcept
     : _from(from), _to(to), _symbol(T()), _epsilon(epsilon)
 {
 }
@@ -161,10 +160,11 @@ constexpr RegexConstexpr<Container, N>::RegexConstexpr(
 
     StateMachine<value_type, pow((std::size_t) 2, N)> sm =
         thompson_construction(rpn, vocab);
-    _sm = sm;
 
     // TODO: NFA to DFA
     // TODO: Minimize the DFA
+
+    _sm = sm;
 }
 
 template <class Container, std::size_t N>
@@ -305,14 +305,37 @@ template <class Container, std::size_t N>
 #endif
 constexpr StateMachine<typename Container::value_type, pow((std::size_t) 2, N)>
 RegexConstexpr<Container, N>::thompson_construction(
-    [[maybe_unused]] const ConstexprVector<typename Container::value_type, N>
-        &rpn,
-    [[maybe_unused]] const VocabularyConstexpr<typename Container::value_type>
-        &voc) noexcept
+    const ConstexprVector<typename Container::value_type, N> &rpn,
+    const VocabularyConstexpr<typename Container::value_type> &voc) noexcept
 {
-    // TODO
-    return StateMachine<typename Container::value_type,
-                        pow((std::size_t) 2, N)>();
+    auto sm =
+        StateMachine<typename Container::value_type, pow((std::size_t) 2, N)>();
+    ConstexprStack<StateID, N> state_stack;
+    for (std::size_t i = 0; i < rpn.size(); ++i)
+    {
+        value_type s = rpn[i];
+        if (s == voc.get(Operators::op_any))
+        {
+            // TODO
+        }
+        else if (s == voc.get(Operators::op_one_or_more))
+        {
+            // TODO
+        }
+        else if (s == voc.get(Operators::op_or))
+        {
+            // TODO
+        }
+        else if (s == voc.get(Operators::op_concat))
+        {
+            // TODO
+        }
+        else // Terminal symbol
+        {
+            // TODO
+        }
+    }
+    return sm;
 }
 
 } // namespace regez

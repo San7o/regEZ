@@ -26,6 +26,8 @@
 
 #pragma once
 
+#include <array>
+
 namespace regez
 {
 
@@ -44,7 +46,7 @@ template <typename T, std::size_t N> class ConstexprVector
 
   private:
     std::size_t m_size;
-    T m_data[N];
+    std::array<T,N> m_data;
 };
 
 template <typename T, std::size_t N>

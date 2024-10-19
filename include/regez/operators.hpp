@@ -37,9 +37,9 @@ enum Operators
     op_one_or_more, // +
     op_open_group,  // (
     op_close_group, // )
-    op_open_match,  // [
-    op_close_match, // ]
-    op_escape,      // "\"
+    // op_open_match,  // [
+    // op_close_match, // ]
+    op_escape, // "\"
     _op_max
 };
 

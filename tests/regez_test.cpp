@@ -50,7 +50,7 @@ TEST(regez_constructor_constexpr, "regez constructor constexpr")
 TEST(regez_infix2postfix_constexpr, "regez infix to postfix")
 {
     constexpr regez::VocabularyConstexpr<char> vocab(
-        {'|', '.', '*', '+', '(', ')', '[', ']', '\\'});
+        {'|', '.', '*', '+', '(', ')', '\\'});
     constexpr regez::ConstexprVector<char, 3> postfix =
         regez::RegexConstexpr<std::string, 3>::infix2postfix(std::string("a|b"),
                                                              vocab);

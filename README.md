@@ -34,7 +34,7 @@ exotic datasets.
 This is an example with the usual string regex syntx we all know:
 ```c++
 // Define the regex grammar
-auto voc = regez::Vocabulary();
+auto voc = regez::Vocabulary()
     .set(regez::regez_open_group, '(');
     .set(regez::regez_close_group, ')');
     .set(regez::regez_open_match, '[');
