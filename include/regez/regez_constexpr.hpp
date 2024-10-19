@@ -34,6 +34,7 @@
 #endif
 
 #include <regez/constexpr_stack.hpp>
+#include <regez/constexpr_vector.hpp>
 #include <regez/operators.hpp>
 
 namespace regez
@@ -75,8 +76,9 @@ class RegexConstexpr
     constexpr bool
     match(const Container &text,
           const VocabularyConstexpr<value_type> &vocab) const noexcept;
-
+#ifndef DEBUG
   private:
+#endif
     constexpr Container
     infix_to_postfix(const Container &pattern,
                      const VocabularyConstexpr<value_type> &voc) const noexcept;
@@ -120,14 +122,31 @@ constexpr Container RegexConstexpr<Container, N>::infix_to_postfix(
     const Container &pattern,
     const VocabularyConstexpr<value_type> &voc) const noexcept
 {
-    [[maybe_unused]] Container postfix;
-    [[maybe_unused]] regez::ConstexprStack<typename Container::value_type, N>
-        ops;
+    regez::ConstexprVector<value_type, N> postfix;
+    regez::ConstexprStack<value_type, N> ops;
     for (const auto &c : pattern)
     {
-        if (c == voc.get(Operators::op_or))
+        if (c == voc.get(Operators::op_open_group))
+        {
+        
+        }
+        else if (c == voc.get(Operators::op_close_group))
+        {
+            
+        }
+        else if (c == voc.get(Operators::op_escape))
         {
         }
+        else if (c == voc.get(Operators::op_any) ||
+                c == voc.get(Operators::op_one_or_more) ||
+                c == voc.get(Operators::op_or) ||
+                c == voc.get(Operators::op_concat))
+        {
+        }
+        else {  // Terminal symbol
+            postfix.push_back(c);
+        }
+
     }
     return pattern;
 }
