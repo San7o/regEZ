@@ -125,8 +125,8 @@ template <class Container, class Alloc>
 #if __cplusplus > 201703L // C++ 20
     requires std::default_initializable<Container>
 #endif
-Container Regex<Container, Alloc>::infix2postfix(
-    const Container &pattern) const noexcept
+Container
+Regex<Container, Alloc>::infix2postfix(const Container &pattern) const noexcept
 {
     [[maybe_unused]] std::stack<value_type, std::deque<value_type, Alloc>>
         stack;

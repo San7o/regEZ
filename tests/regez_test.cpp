@@ -49,29 +49,34 @@ TEST(regez_constructor_constexpr, "regez constructor constexpr")
 #ifdef REGEZ_DEBUG
 TEST(regez_infix2postfix_constexpr, "regez infix to postfix")
 {
-    constexpr regez::VocabularyConstexpr<char> vocab({'|', '.', '*', '+', '(', ')', '[', ']', '\\'});
+    constexpr regez::VocabularyConstexpr<char> vocab(
+        {'|', '.', '*', '+', '(', ')', '[', ']', '\\'});
     constexpr regez::ConstexprVector<char, 3> postfix =
-            regez::RegexConstexpr<std::string, 3>::infix2postfix(std::string("a|b"), vocab);
+        regez::RegexConstexpr<std::string, 3>::infix2postfix(std::string("a|b"),
+                                                             vocab);
     static_assert(postfix.size() == 3);
     static_assert(postfix[0] == 'a');
     static_assert(postfix[1] == 'b');
     static_assert(postfix[2] == '|');
 
     constexpr regez::ConstexprVector<char, 3> postfix2 =
-            regez::RegexConstexpr<std::string, 3>::infix2postfix(std::string("a.b"), vocab);
+        regez::RegexConstexpr<std::string, 3>::infix2postfix(std::string("a.b"),
+                                                             vocab);
     static_assert(postfix2.size() == 3);
     static_assert(postfix2[0] == 'a');
     static_assert(postfix2[1] == 'b');
     static_assert(postfix2[2] == '.');
 
     constexpr regez::ConstexprVector<char, 2> postfix3 =
-            regez::RegexConstexpr<std::string, 2>::infix2postfix(std::string("a*"), vocab);
+        regez::RegexConstexpr<std::string, 2>::infix2postfix(std::string("a*"),
+                                                             vocab);
     static_assert(postfix3.size() == 2);
     static_assert(postfix3[0] == 'a');
     static_assert(postfix3[1] == '*');
 
     constexpr regez::ConstexprVector<char, 6> postfix4 =
-            regez::RegexConstexpr<std::string, 6>::infix2postfix(std::string("a|b.c*"), vocab);
+        regez::RegexConstexpr<std::string, 6>::infix2postfix(
+            std::string("a|b.c*"), vocab);
     static_assert(postfix4.size() == 6);
     static_assert(postfix4[0] == 'a');
     static_assert(postfix4[1] == 'b');
@@ -81,7 +86,8 @@ TEST(regez_infix2postfix_constexpr, "regez infix to postfix")
     static_assert(postfix4[5] == '|');
 
     constexpr regez::ConstexprVector<char, 8> postfix5 =
-            regez::RegexConstexpr<std::string, 8>::infix2postfix(std::string("(a|b)*.c"), vocab);
+        regez::RegexConstexpr<std::string, 8>::infix2postfix(
+            std::string("(a|b)*.c"), vocab);
     static_assert(postfix5.size() == 6);
     static_assert(postfix5[0] == 'a');
     static_assert(postfix5[1] == 'b');
@@ -91,7 +97,8 @@ TEST(regez_infix2postfix_constexpr, "regez infix to postfix")
     static_assert(postfix5[5] == '.');
 
     constexpr regez::ConstexprVector<char, 4> postfix6 =
-            regez::RegexConstexpr<std::string, 4>::infix2postfix(std::string("a.\\."), vocab);
+        regez::RegexConstexpr<std::string, 4>::infix2postfix(
+            std::string("a.\\."), vocab);
     static_assert(postfix6.size() == 4);
     static_assert(postfix6[0] == 'a');
     static_assert(postfix6[1] == '\\');

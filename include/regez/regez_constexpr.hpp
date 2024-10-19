@@ -28,6 +28,7 @@
 
 #include <array>
 #include <memory>
+#include <optional>
 #include <stack>
 #if __cplusplus > 201703L // C++ 17
 #include <concepts>
@@ -39,6 +40,25 @@
 
 namespace regez
 {
+
+template <typename T>
+#if __cplusplus > 201703L // C++ 20
+    requires std::copy_constructible<T>
+#endif
+constexpr T pow(const T _base, const T _exp)
+{
+    T result = 1;
+    T exp = _exp;
+    T base = _base;
+    while (exp)
+    {
+        if (exp & 1)
+            result *= base;
+        exp >>= 1;
+        base *= base;
+    }
+    return result;
+}
 
 template <class Type> class VocabularyConstexpr
 {
@@ -61,6 +81,45 @@ constexpr Type VocabularyConstexpr<Type>::get(const Operators op) const noexcept
     return _vocab[op];
 }
 
+typedef long unsigned int StateID;
+
+template <class T> class Transition
+{
+  public:
+    using value_type = T;
+    constexpr explicit Transition() noexcept = default;
+    constexpr Transition(StateID from, StateID to, T symbol) noexcept;
+    constexpr Transition(StateID from, StateID to, bool epsilon) noexcept;
+
+  private:
+    StateID _from;
+    StateID _to;
+    T _symbol;
+    bool _epsilon;
+};
+
+template <class T>
+constexpr Transition<T>::Transition(StateID from, StateID to, T symbol) noexcept
+    : _from(from), _to(to), _symbol(symbol)
+{
+}
+
+template <class T>
+constexpr Transition<T>::Transition(StateID from, StateID to, bool epsilon) noexcept
+    : _from(from), _to(to), _symbol(T()), _epsilon(epsilon)
+{
+}
+
+template <class T, std::size_t N> class StateMachine
+{
+  public:
+    using value_type = T;
+
+  private:
+    ConstexprVector<StateID, N> _states;
+    ConstexprVector<Transition<T>, N * N> _transitions;
+};
+
 template <class Container, std::size_t N>
 #if __cplusplus > 201703L // C++ 20
     requires std::default_initializable<Container>
@@ -78,9 +137,13 @@ class RegexConstexpr
 #ifndef REGEZ_DEBUG
   private:
 #endif
+    StateMachine<value_type, pow((std::size_t) 2, N)> _sm;
     constexpr static ConstexprVector<value_type, N>
     infix2postfix(const Container &pattern,
-                     const VocabularyConstexpr<value_type> &voc);
+                  const VocabularyConstexpr<value_type> &voc);
+    constexpr static StateMachine<value_type, pow((std::size_t) 2, N)>
+    thompson_construction(const ConstexprVector<value_type, N> &rpn,
+                          const VocabularyConstexpr<value_type> &voc) noexcept;
 };
 
 template <class Container, std::size_t N>
@@ -94,10 +157,12 @@ constexpr RegexConstexpr<Container, N>::RegexConstexpr(
     // TODO: Check Correctness of the pattern
     // TODO: Expand the pattern
 
-    [[maybe_unused]] ConstexprVector<value_type, N> rpn =
-        infix2postfix(pattern, vocab);
+    ConstexprVector<value_type, N> rpn = infix2postfix(pattern, vocab);
 
-    // TODO: Thompson's construction
+    StateMachine<value_type, pow((std::size_t) 2, N)> sm =
+        thompson_construction(rpn, vocab);
+    _sm = sm;
+
     // TODO: NFA to DFA
     // TODO: Minimize the DFA
 }
@@ -121,8 +186,7 @@ template <class Container, std::size_t N>
 #endif
 constexpr ConstexprVector<typename Container::value_type, N>
 RegexConstexpr<Container, N>::infix2postfix(
-    const Container &pattern,
-    const VocabularyConstexpr<value_type> &voc)
+    const Container &pattern, const VocabularyConstexpr<value_type> &voc)
 {
     regez::ConstexprVector<value_type, N> postfix;
     regez::ConstexprStack<Operators, N> ops;
@@ -223,7 +287,7 @@ RegexConstexpr<Container, N>::infix2postfix(
             }
         }
         else
-        {  // Terminal symbol
+        { // Terminal symbol
             postfix.push_back(c);
         }
     }
@@ -233,6 +297,22 @@ RegexConstexpr<Container, N>::infix2postfix(
         ops.pop();
     }
     return postfix;
+}
+
+template <class Container, std::size_t N>
+#if __cplusplus > 201703L // C++ 20
+    requires std::default_initializable<Container>
+#endif
+constexpr StateMachine<typename Container::value_type, pow((std::size_t) 2, N)>
+RegexConstexpr<Container, N>::thompson_construction(
+    [[maybe_unused]] const ConstexprVector<typename Container::value_type, N>
+        &rpn,
+    [[maybe_unused]] const VocabularyConstexpr<typename Container::value_type>
+        &voc) noexcept
+{
+    // TODO
+    return StateMachine<typename Container::value_type,
+                        pow((std::size_t) 2, N)>();
 }
 
 } // namespace regez
