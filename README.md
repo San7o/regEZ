@@ -35,17 +35,17 @@ This is an example with the usual string regex syntx we all know:
 ```c++
 // Define the regex grammar
 auto voc = regez::Vocabulary()
-    .set(regez::regez_open_group, '(');
-    .set(regez::regez_close_group, ')');
-    .set(regez::regez_open_match, '[');
-    .set(regez::regez_close_match, ']');
-    .set(regez::regez_or, '|');
-    .set(regez::regez_any, '*');
-    .set(regez::regez_concat, '.');
-    .setn(regez::regez_escape, '\\');
+    .set(regez::regez_open_group, '(')
+    .set(regez::regez_close_group, ')')
+    .set(regez::regez_open_match, '[')
+    .set(regez::regez_close_match, ']')
+    .set(regez::regez_or, '|')
+    .set(regez::regez_any, '*')
+    .set(regez::regez_concat, '.')
+    .set(regez::regez_escape, '\\');
 
 // Create a regex object
-regez::regex<std::string> r(std::string("(a|b)*c"), voc);
+regez::Regex<std::string> r(std::string("(a|b)*c"), voc);
 ```
 
 ## Json serialization

@@ -105,4 +105,18 @@ TEST(regez_infix2postfix_constexpr, "regez infix to postfix")
     static_assert(postfix6[2] == '.');
     static_assert(postfix6[3] == '.');
 }
+
+TEST(regez_thompson_constexpr_test, "regez thompson construction constexpr")
+{
+    constexpr regez::VocabularyConstexpr<char> vocab(
+        {'|', '.', '*', '+', '(', ')', '\\'});
+    constexpr regez::ConstexprVector<char, 3> postfix =
+        regez::RegexConstexpr<std::string, 3>::infix2postfix(std::string("a|b"),
+                                                             vocab);
+    constexpr regez::StateMachine<char, regez::pow(2,3)> sm =
+        regez::RegexConstexpr<std::string, 3>::thompson_construction(postfix,
+                                                              vocab);
+    static_assert(sm._states.size() == 6);
+}
+
 #endif

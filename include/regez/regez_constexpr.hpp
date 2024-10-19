@@ -28,6 +28,7 @@
 
 #include <array>
 #include <memory>
+#include <utility>
 #if __cplusplus > 201703L // C++ 17
 #include <concepts>
 #endif
@@ -113,11 +114,45 @@ template <class T, std::size_t N> class StateMachine
 {
   public:
     using value_type = T;
-
+    constexpr explicit StateMachine() noexcept = default;
+    constexpr StateID add_state() noexcept;
+    constexpr void add_transition(StateID from, StateID to,
+                                          T symbol) noexcept;
+    constexpr void add_epsilon_transition(StateID from,
+                                                StateID to) noexcept;
+#ifndef REGEZ_DEBUG
   private:
+#endif
     ConstexprVector<StateID, N> _states;
     ConstexprVector<Transition<T>, N * N> _transitions;
 };
+
+template <class T, std::size_t N>
+constexpr StateID StateMachine<T, N>::add_state() noexcept
+{
+    StateID new_state = _states.size();
+    _states.push_back(new_state);
+    return new_state;
+}
+
+template <class T, std::size_t N>
+constexpr void StateMachine<T, N>::add_transition(StateID from,
+                                                           StateID to,
+                                                           T symbol) noexcept
+{
+    Transition<T> new_transition(from, to, symbol);
+    _transitions.push_back(new_transition);
+    return;
+}
+
+template <class T, std::size_t N>
+constexpr void StateMachine<T, N>::add_epsilon_transition(StateID from,
+                                                           StateID to) noexcept
+{
+    Transition<T> new_transition(from, to, true);
+    _transitions.push_back(new_transition);
+    return;
+}
 
 template <class Container, std::size_t N>
 #if __cplusplus > 201703L // C++ 20
@@ -310,29 +345,81 @@ RegexConstexpr<Container, N>::thompson_construction(
 {
     auto sm =
         StateMachine<typename Container::value_type, pow((std::size_t) 2, N)>();
-    ConstexprStack<StateID, N> state_stack;
+    ConstexprStack<std::pair<StateID, StateID>, N> state_stack;
     for (std::size_t i = 0; i < rpn.size(); ++i)
     {
         value_type s = rpn[i];
         if (s == voc.get(Operators::op_any))
         {
-            // TODO
+            if (state_stack.empty()) // Not enough operands
+            {
+                return sm;
+            }
+
+            std::pair<StateID, StateID> regex = state_stack.top();
+            StateID state_from = sm.add_state();
+            StateID state_to = sm.add_state();
+            sm.add_epsilon_transition(state_from, regex.first);
+            sm.add_epsilon_transition(regex.second, state_to);
+            sm.add_epsilon_transition(state_from, state_to);
+            sm.add_epsilon_transition(regex.second, regex.first);
+            state_stack.push(std::make_pair(state_from, state_to));
         }
         else if (s == voc.get(Operators::op_one_or_more))
         {
-            // TODO
+            if (state_stack.empty()) // Not enough operands
+            {
+                return sm;
+            }
+
+            std::pair<StateID, StateID> regex = state_stack.top();
+            StateID state_from = sm.add_state();
+            StateID state_to = sm.add_state();
+            sm.add_epsilon_transition(state_from, regex.first);
+            sm.add_epsilon_transition(regex.second, state_to);
+            sm.add_epsilon_transition(regex.second, regex.first);
+            state_stack.push(std::make_pair(state_from, state_to));
         }
         else if (s == voc.get(Operators::op_or))
         {
-            // TODO
+            if (state_stack.size() < 2) // Not enough operands
+            {
+                return sm;
+            }
+
+            std::pair<StateID, StateID> regex_a = state_stack.top();
+            state_stack.pop();
+            std::pair<StateID, StateID> regex_b = state_stack.top();
+            state_stack.pop();
+
+            StateID state_from = sm.add_state();
+            StateID state_to = sm.add_state();
+            sm.add_epsilon_transition(state_from, regex_a.first);
+            sm.add_epsilon_transition(state_from, regex_b.first);
+            sm.add_epsilon_transition(regex_a.second, state_to);
+            sm.add_epsilon_transition(regex_b.second, state_to);
+            state_stack.push(std::make_pair(state_from, state_to));
         }
         else if (s == voc.get(Operators::op_concat))
         {
-            // TODO
+            if (state_stack.size() < 2) // Not enough operands
+            {
+                return sm;
+            }
+
+            std::pair<StateID, StateID> regex_a = state_stack.top();
+            state_stack.pop();
+            std::pair<StateID, StateID> regex_b = state_stack.top();
+            state_stack.pop();
+            sm.add_epsilon_transition(regex_b.second, regex_a.first);
+            state_stack.push(std::make_pair(regex_b.first, regex_a.second));
         }
         else // Terminal symbol
         {
-            // TODO
+            StateID state_from = sm.add_state();
+            StateID state_to = sm.add_state();
+            sm.add_transition(state_from, state_to, s);
+            state_stack.push(std::make_pair(state_from, state_to));
         }
     }
     return sm;
