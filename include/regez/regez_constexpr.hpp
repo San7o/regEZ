@@ -56,8 +56,7 @@ template <class Type> class VocabularyConstexpr
 };
 
 template <class Type>
-constexpr Type
-VocabularyConstexpr<Type>::get(const Operators op) const noexcept
+constexpr Type VocabularyConstexpr<Type>::get(const Operators op) const noexcept
 {
     return _vocab[op];
 }
@@ -76,12 +75,12 @@ class RegexConstexpr
     constexpr bool
     match(const Container &text,
           const VocabularyConstexpr<value_type> &vocab) const noexcept;
-#ifndef DEBUG
+#ifndef REGEZ_DEBUG
   private:
 #endif
-    constexpr Container
-    infix_to_postfix(const Container &pattern,
-                     const VocabularyConstexpr<value_type> &voc) const noexcept;
+    constexpr static ConstexprVector<value_type, N>
+    infix2postfix(const Container &pattern,
+                     const VocabularyConstexpr<value_type> &voc);
 };
 
 template <class Container, std::size_t N>
@@ -95,7 +94,8 @@ constexpr RegexConstexpr<Container, N>::RegexConstexpr(
     // TODO: Check Correctness of the pattern
     // TODO: Expand the pattern
 
-    [[maybe_unused]] Container rpn = infix_to_postfix(pattern, vocab);
+    [[maybe_unused]] ConstexprVector<value_type, N> rpn =
+        infix2postfix(pattern, vocab);
 
     // TODO: Thompson's construction
     // TODO: NFA to DFA
@@ -114,41 +114,125 @@ constexpr bool RegexConstexpr<Container, N>::match(
     return false;
 }
 
+// Assuming a well-formed pattern with no open match or close match tokens
 template <class Container, std::size_t N>
 #if __cplusplus > 201703L // C++ 20
     requires std::default_initializable<Container>
 #endif
-constexpr Container RegexConstexpr<Container, N>::infix_to_postfix(
+constexpr ConstexprVector<typename Container::value_type, N>
+RegexConstexpr<Container, N>::infix2postfix(
     const Container &pattern,
-    const VocabularyConstexpr<value_type> &voc) const noexcept
+    const VocabularyConstexpr<value_type> &voc)
 {
     regez::ConstexprVector<value_type, N> postfix;
-    regez::ConstexprStack<value_type, N> ops;
+    regez::ConstexprStack<Operators, N> ops;
+    bool is_escaped = false;
     for (const auto &c : pattern)
     {
+        if (is_escaped)
+        {
+            postfix.push_back(voc.get(Operators::op_escape));
+            postfix.push_back(c);
+            is_escaped = false;
+            continue;
+        }
+
         if (c == voc.get(Operators::op_open_group))
         {
-        
+            ops.push(Operators::op_open_group);
         }
         else if (c == voc.get(Operators::op_close_group))
         {
-            
+            while (!ops.empty() && Operators::op_open_group != ops.top())
+            {
+                postfix.push_back(voc.get(ops.top()));
+                ops.pop();
+            }
+            ops.pop();
         }
         else if (c == voc.get(Operators::op_escape))
         {
+            is_escaped = true;
         }
-        else if (c == voc.get(Operators::op_any) ||
-                c == voc.get(Operators::op_one_or_more) ||
-                c == voc.get(Operators::op_or) ||
-                c == voc.get(Operators::op_concat))
+        else if (c == voc.get(Operators::op_any))
         {
+            if (ops.empty() || Operators::op_any > ops.top()
+                || ops.contains(Operators::op_open_group))
+            {
+                ops.push(Operators::op_any);
+            }
+            else
+            {
+                while (!ops.empty() && Operators::op_any <= ops.top())
+                {
+                    postfix.push_back(voc.get(ops.top()));
+                    ops.pop();
+                }
+                ops.push(Operators::op_any);
+            }
         }
-        else {  // Terminal symbol
+        else if (c == voc.get(Operators::op_one_or_more))
+        {
+            if (ops.empty() || Operators::op_one_or_more > ops.top()
+                || ops.contains(Operators::op_open_group))
+            {
+                ops.push(Operators::op_one_or_more);
+            }
+            else
+            {
+                while (!ops.empty() && Operators::op_one_or_more <= ops.top())
+                {
+                    postfix.push_back(voc.get(ops.top()));
+                    ops.pop();
+                }
+                ops.push(Operators::op_one_or_more);
+            }
+        }
+        else if (c == voc.get(Operators::op_or))
+        {
+            if (ops.empty() || Operators::op_or > ops.top()
+                || ops.contains(Operators::op_open_group))
+            {
+                ops.push(Operators::op_or);
+            }
+            else
+            {
+                while (!ops.empty() && Operators::op_or <= ops.top())
+                {
+                    postfix.push_back(voc.get(ops.top()));
+                    ops.pop();
+                }
+                ops.push(Operators::op_or);
+            }
+        }
+        else if (c == voc.get(Operators::op_concat))
+        {
+            if (ops.empty() || Operators::op_concat > ops.top()
+                || ops.contains(Operators::op_open_group))
+            {
+                ops.push(Operators::op_concat);
+            }
+            else
+            {
+                while (!ops.empty() && Operators::op_concat <= ops.top())
+                {
+                    postfix.push_back(voc.get(ops.top()));
+                    ops.pop();
+                }
+                ops.push(Operators::op_concat);
+            }
+        }
+        else
+        {  // Terminal symbol
             postfix.push_back(c);
         }
-
     }
-    return pattern;
+    while (!ops.empty())
+    {
+        postfix.push_back(voc.get(ops.top()));
+        ops.pop();
+    }
+    return postfix;
 }
 
 } // namespace regez

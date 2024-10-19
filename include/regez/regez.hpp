@@ -55,8 +55,8 @@ template <class Type> Vocabulary<Type>::Vocabulary() noexcept
 }
 
 template <class Type>
-typename Vocabulary<Type>::value_type Vocabulary<Type>::get(
-    const Operators op) const noexcept
+typename Vocabulary<Type>::value_type
+Vocabulary<Type>::get(const Operators op) const noexcept
 {
     return _vocab[op];
 }
@@ -85,7 +85,7 @@ class Regex
   private:
     const Vocabulary<value_type> _vocab;
     const Alloc _alloc;
-    Container infix_to_postfix(const Container &pattern) const noexcept;
+    Container infix2postfix(const Container &pattern) const noexcept;
 };
 
 template <class Container, class Alloc>
@@ -104,7 +104,7 @@ Regex<Container, Alloc>::Regex(
     // TODO: Check Correctness of the pattern
     // TODO: Expand the pattern
 
-    [[maybe_unused]] Container rpn = infix_to_postfix(pattern);
+    [[maybe_unused]] Container rpn = infix2postfix(pattern);
 
     // TODO: Thompson's construction
     // TODO: NFA to DFA
@@ -125,7 +125,7 @@ template <class Container, class Alloc>
 #if __cplusplus > 201703L // C++ 20
     requires std::default_initializable<Container>
 #endif
-Container Regex<Container, Alloc>::infix_to_postfix(
+Container Regex<Container, Alloc>::infix2postfix(
     const Container &pattern) const noexcept
 {
     [[maybe_unused]] std::stack<value_type, std::deque<value_type, Alloc>>

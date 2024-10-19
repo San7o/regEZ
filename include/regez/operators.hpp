@@ -39,7 +39,7 @@ enum Operators
     op_close_group, // )
     op_open_match,  // [
     op_close_match, // ]
-    op_escape,
+    op_escape,      // "\"
     _op_max
 };
 

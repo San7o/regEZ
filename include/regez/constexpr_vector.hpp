@@ -39,7 +39,8 @@ template <typename T, std::size_t N> class ConstexprVector
     constexpr const T &back() const noexcept;
     constexpr std::size_t size() const noexcept;
     constexpr bool empty() const noexcept;
-
+    constexpr bool contains(const T &value) const noexcept;
+    constexpr T operator[](const std::size_t index) const noexcept;
   private:
     std::size_t m_size;
     T m_data[N];
@@ -61,7 +62,8 @@ constexpr void ConstexprVector<T, N>::push_back(const T &value) noexcept
 template <typename T, std::size_t N>
 constexpr void ConstexprVector<T, N>::pop_back() noexcept
 {
-    --m_size;
+    if (m_size > 0)
+        --m_size;
 }
 
 template <typename T, std::size_t N>
@@ -86,6 +88,23 @@ template <typename T, std::size_t N>
 constexpr bool ConstexprVector<T, N>::empty() const noexcept
 {
     return m_size == 0;
+}
+
+template <typename T, std::size_t N>
+constexpr bool ConstexprVector<T, N>::contains(const T &value) const noexcept
+{
+    for (std::size_t i = 0; i < m_size; ++i)
+    {
+        if (m_data[i] == value)
+            return true;
+    }
+    return false;
+}
+
+template <typename T, std::size_t N>
+constexpr T ConstexprVector<T,N>::operator[](const std::size_t index) const noexcept
+{
+    return m_data[index];
 }
 
 } // namespace regez

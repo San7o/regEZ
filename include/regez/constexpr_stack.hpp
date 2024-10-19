@@ -39,6 +39,7 @@ template <typename T, std::size_t N> class ConstexprStack
     constexpr const T &top() const noexcept;
     constexpr std::size_t size() const noexcept;
     constexpr bool empty() const noexcept;
+    constexpr bool contains(const T &value) const noexcept;
 
   private:
     std::size_t m_size;
@@ -60,7 +61,8 @@ constexpr void ConstexprStack<T, N>::push(const T &value) noexcept
 template <typename T, std::size_t N>
 constexpr void ConstexprStack<T, N>::pop() noexcept
 {
-    --m_size;
+    if (m_size > 0)
+        --m_size;
 }
 
 template <typename T, std::size_t N>
@@ -85,6 +87,19 @@ template <typename T, std::size_t N>
 constexpr bool ConstexprStack<T, N>::empty() const noexcept
 {
     return m_size == 0;
+}
+
+template <typename T, std::size_t N>
+constexpr bool ConstexprStack<T, N>::contains(const T &value) const noexcept
+{
+    for (std::size_t i = 0; i < m_size; ++i)
+    {
+        if (m_data[i] == value)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace regez
