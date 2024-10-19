@@ -6,23 +6,23 @@ regEZ is a modern, header only implementation of a general regex engine in C++23
 
 The regex will allow the following tokens:
 
-- `REGEZ_CONCAT`: concatenation operator
+- `regez_concat`: concatenation operator
 
-- `REGEZ_OR`: "objectA OR objectB" matches either "objectA" or "objectB"
+- `regez_or`: "objectA OR objectB" matches either "objectA" or "objectB"
 
-- `REGEZ_ANY`: "objectA ANY" matches any number of occurences of "objectA", even 0
+- `regez_any`: "objectA ANY" matches any number of occurences of "objectA", even 0
 
-- `REGEZ_OPEN_GROUP`: opens a new group, eg. "("
+- `regez_open_group`: opens a new group, eg. "("
 
-- `REGEZ_CLOSE_GROUP`: closes a group, eg. ")"
+- `regez_close_group`: closes a group, eg. ")"
     
-- `REGEZ_OPEN_MATCH`, `REGEZ_CLOSE_MATCH`: the regex will match any object encosed
-beween `OPEN_MATCH` and `CLOSED_MATCH`. eg. with `OPEN_MATCH`="[" and `CLOSED_MATCH`="]", 
+- `regez_open_match`, `regez_close_match`: the regex will match any object encosed
+beween `open_match` and `closed_match`. eg. with `open_match`="[" and `closed_match`="]", 
 "[ABC]" will match either A, or B, or C
     
-- `REGEZ_ONE_OR_MORE`: "+"
+- `regez_one_or_more`: "+"
 
-- `REGEZ_ESCAPE`: escape any of the previous tokens
+- `regez_escape`: escape any of the previous tokens
 
 ## Works with any type!
 
@@ -34,18 +34,18 @@ exotic datasets.
 This is an example with the usual string regex syntx we all know:
 ```c++
 // Define the regex grammar
-regez::grammar<std::string> g;
-g.set_token(std::string("("), regez::REGEZ_OPEN_GROUP);
-g.set_token(std::string(")"), regez::REGEZ_CLOSE_GROUP);
-g.set_token(std::string("["), regez::REGEZ_OPEN_MATCH);
-g.set_token(std::string("]"), regez::REGEZ_CLOSE_MATCH);
-g.set_token(std::string("|"), regez::REGEZ_OR);
-g.set_token(std::string("*"), regez::REGEZ_ANY);
-g.set_token(std::string("."), regez::REGEZ_CONCAT);
-g.set_token(std::string(R"(\\)"), regez::REGEZ_ESCAPE);
+auto voc = regez::Vocabulary();
+    .set(regez::regez_open_group, '(');
+    .set(regez::regez_close_group, ')');
+    .set(regez::regez_open_match, '[');
+    .set(regez::regez_close_match, ']');
+    .set(regez::regez_or, '|');
+    .set(regez::regez_any, '*');
+    .set(regez::regez_concat, '.');
+    .setn(regez::regez_escape, '\\');
 
 // Create a regex object
-regez::regex<std::string> r(std::string("(a|b)*c"), &g);
+regez::regex<std::string> r(std::string("(a|b)*c"), voc);
 ```
 
 ## Json serialization
