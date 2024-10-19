@@ -43,10 +43,11 @@ template <class Type> class Vocabulary
   public:
     using value_type = Type;
     explicit Vocabulary() noexcept;
-    Vocabulary &&set(operators op, value_type value) noexcept;
+    value_type get(const Operators op) const noexcept;
+    Vocabulary &&set(Operators op, value_type value) noexcept;
 
   private:
-    std::array<value_type, operators::_op_max> _vocab;
+    std::array<value_type, Operators::_op_max> _vocab;
 };
 
 template <class Type> Vocabulary<Type>::Vocabulary() noexcept
@@ -54,7 +55,14 @@ template <class Type> Vocabulary<Type>::Vocabulary() noexcept
 }
 
 template <class Type>
-Vocabulary<Type> &&Vocabulary<Type>::set(operators op,
+typename Vocabulary<Type>::value_type Vocabulary<Type>::get(
+    const Operators op) const noexcept
+{
+    return _vocab[op];
+}
+
+template <class Type>
+Vocabulary<Type> &&Vocabulary<Type>::set(Operators op,
                                          value_type value) noexcept
 {
     _vocab[op] = value;
@@ -91,11 +99,10 @@ Regex<Container, Alloc>::Regex(
 {
     static_assert(std::is_same<typename Alloc::value_type, value_type>::value,
                   "The allocator must have the same value_type as the "
-                  "container");
+                  "container's value_type");
 
     // TODO: Check Correctness of the pattern
     // TODO: Expand the pattern
-    // TODO: Write the pattern in reverse polish notation
 
     [[maybe_unused]] Container rpn = infix_to_postfix(pattern);
 

@@ -32,15 +32,15 @@
 TEST(regez_constructor, "regez constructor")
 {
     regez::Vocabulary<char> vocab = regez::Vocabulary<char>()
-                                        .set(regez::operators::op_or, '|')
-                                        .set(regez::operators::op_any, '*')
-                                        .set(regez::operators::op_concat, '.');
+                                        .set(regez::Operators::op_or, '|')
+                                        .set(regez::Operators::op_any, '*')
+                                        .set(regez::Operators::op_concat, '.');
     [[maybe_unused]] regez::Regex<std::string> regez(std::string("a"), vocab);
 }
 
 TEST(regez_constructor_constexpr, "regez constructor constexpr")
 {
-    constexpr regez::VocabularyConstexpr<char> vocab({'a', 'b', 'c'});
+    constexpr regez::VocabularyConstexpr<char> vocab({'.', '|', '*'});
     constexpr std::array<char, 1> regez_str = {'a'};
     [[maybe_unused]] constexpr regez::RegexConstexpr<std::array<char, 1>, 1>
         regez(regez_str, vocab);

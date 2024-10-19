@@ -29,7 +29,7 @@
 namespace regez
 {
 
-enum operators
+enum Operators
 {
     op_or = 0,
     op_concat,

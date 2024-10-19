@@ -44,14 +44,22 @@ template <class Type> class VocabularyConstexpr
   public:
     using value_type = Type;
     constexpr VocabularyConstexpr(
-        std::array<value_type, operators::_op_max> vocab) noexcept
+        std::array<value_type, Operators::_op_max> vocab) noexcept
         : _vocab(vocab)
     {
     }
+    constexpr value_type get(const Operators op) const noexcept;
 
   private:
-    const std::array<value_type, operators::_op_max> _vocab;
+    const std::array<value_type, Operators::_op_max> _vocab;
 };
+
+template <class Type>
+constexpr Type
+VocabularyConstexpr<Type>::get(const Operators op) const noexcept
+{
+    return _vocab[op];
+}
 
 template <class Container, std::size_t N>
 #if __cplusplus > 201703L // C++ 20
@@ -64,12 +72,14 @@ class RegexConstexpr
     constexpr explicit RegexConstexpr(
         const Container &pattern,
         const VocabularyConstexpr<value_type> &vocab) noexcept;
-    constexpr bool match(const Container &text) const noexcept;
+    constexpr bool
+    match(const Container &text,
+          const VocabularyConstexpr<value_type> &vocab) const noexcept;
 
   private:
-    const VocabularyConstexpr<value_type> _vocab;
     constexpr Container
-    infix_to_postfix(const Container &pattern) const noexcept;
+    infix_to_postfix(const Container &pattern,
+                     const VocabularyConstexpr<value_type> &voc) const noexcept;
 };
 
 template <class Container, std::size_t N>
@@ -79,25 +89,25 @@ template <class Container, std::size_t N>
 constexpr RegexConstexpr<Container, N>::RegexConstexpr(
     const Container &pattern,
     const VocabularyConstexpr<typename Container::value_type> &vocab) noexcept
-    : _vocab(vocab)
 {
     // TODO: Check Correctness of the pattern
     // TODO: Expand the pattern
-    // TODO: Write the pattern in reverse polish notation
 
-    [[maybe_unused]] Container rpn = infix_to_postfix(pattern);
+    [[maybe_unused]] Container rpn = infix_to_postfix(pattern, vocab);
 
     // TODO: Thompson's construction
     // TODO: NFA to DFA
-    // TODO: Minimize the DFA
+    // TODO: Minimize the DFAtype/value mismatch at argument 2 in template
+    // parameter list for 'template<class Container, class Alloc> class Regex
 }
 
 template <class Container, std::size_t N>
 #if __cplusplus > 201703L // C++ 20
     requires std::default_initializable<Container>
 #endif
-constexpr bool
-RegexConstexpr<Container, N>::match(const Container &text) const noexcept
+constexpr bool RegexConstexpr<Container, N>::match(
+    const Container &text,
+    const VocabularyConstexpr<value_type> &voc) const noexcept
 {
     // TODO: Match the text with the pattern
     return false;
@@ -108,11 +118,18 @@ template <class Container, std::size_t N>
     requires std::default_initializable<Container>
 #endif
 constexpr Container RegexConstexpr<Container, N>::infix_to_postfix(
-    const Container &pattern) const noexcept
+    const Container &pattern,
+    const VocabularyConstexpr<value_type> &voc) const noexcept
 {
+    [[maybe_unused]] Container postfix;
     [[maybe_unused]] regez::ConstexprStack<typename Container::value_type, N>
-        stack;
-    // TODO: Implement the infix to postfix algorithm
+        ops;
+    for (const auto c : pattern)
+    {
+        if (c == voc.get(Operators::op_or))
+        {
+        }
+    }
     return pattern;
 }
 
