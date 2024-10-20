@@ -43,10 +43,18 @@ template <typename T, std::size_t N> class ConstexprVector
     constexpr bool empty() const noexcept;
     constexpr bool contains(const T &value) const noexcept;
     constexpr T operator[](const std::size_t index) const noexcept;
+    constexpr std::array<T, N>::const_iterator begin() const noexcept
+    {
+        return m_data.begin();
+    }
+    constexpr std::array<T, N>::const_iterator end() const noexcept
+    {
+        return m_data.begin() + m_size;
+    }
 
   private:
     std::size_t m_size;
-    std::array<T,N> m_data;
+    std::array<T, N> m_data;
 };
 
 template <typename T, std::size_t N>

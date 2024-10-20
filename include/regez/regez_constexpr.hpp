@@ -28,6 +28,7 @@
 
 #include <array>
 #include <memory>
+#include <ostream>
 #include <utility>
 #if __cplusplus > 201703L // C++ 17
 #include <concepts>
@@ -86,27 +87,20 @@ template <class T> class Transition
 {
   public:
     using value_type = T;
-    constexpr explicit Transition() noexcept = default;
-    constexpr Transition(StateID from, StateID to, T symbol) noexcept;
-    constexpr Transition(StateID from, StateID to, bool epsilon) noexcept;
+    StateID from;
+    StateID to;
+    T symbol;
+    bool epsilon;
 
-  private:
-    StateID _from;
-    StateID _to;
-    T _symbol;
-    bool _epsilon;
+    constexpr explicit Transition() noexcept = default;
+    constexpr Transition(StateID from, StateID to, bool epsilon,
+                         T symbol = T()) noexcept;
 };
 
 template <class T>
-constexpr Transition<T>::Transition(StateID from, StateID to, T symbol) noexcept
-    : _from(from), _to(to), _symbol(symbol)
-{
-}
-
-template <class T>
-constexpr Transition<T>::Transition(StateID from, StateID to,
-                                    bool epsilon) noexcept
-    : _from(from), _to(to), _symbol(T()), _epsilon(epsilon)
+constexpr Transition<T>::Transition(StateID _from, StateID _to, bool _epsilon,
+                                    T _symbol) noexcept
+    : from(_from), to(_to), symbol(_symbol), epsilon(_epsilon)
 {
 }
 
@@ -116,15 +110,15 @@ template <class T, std::size_t N> class StateMachine
     using value_type = T;
     constexpr explicit StateMachine() noexcept = default;
     constexpr StateID add_state() noexcept;
-    constexpr void add_transition(StateID from, StateID to,
-                                          T symbol) noexcept;
-    constexpr void add_epsilon_transition(StateID from,
-                                                StateID to) noexcept;
+    constexpr void add_transition(StateID from, StateID to, T symbol) noexcept;
+    constexpr void add_epsilon_transition(StateID from, StateID to) noexcept;
 #ifndef REGEZ_DEBUG
   private:
 #endif
     ConstexprVector<StateID, N> _states;
     ConstexprVector<Transition<T>, N * N> _transitions;
+    ConstexprVector<StateID, N> _final_states;
+    StateID _initial_state;
 };
 
 template <class T, std::size_t N>
@@ -136,18 +130,17 @@ constexpr StateID StateMachine<T, N>::add_state() noexcept
 }
 
 template <class T, std::size_t N>
-constexpr void StateMachine<T, N>::add_transition(StateID from,
-                                                           StateID to,
-                                                           T symbol) noexcept
+constexpr void StateMachine<T, N>::add_transition(StateID from, StateID to,
+                                                  T symbol) noexcept
 {
-    Transition<T> new_transition(from, to, symbol);
+    Transition<T> new_transition(from, to, false, symbol);
     _transitions.push_back(new_transition);
     return;
 }
 
 template <class T, std::size_t N>
 constexpr void StateMachine<T, N>::add_epsilon_transition(StateID from,
-                                                           StateID to) noexcept
+                                                          StateID to) noexcept
 {
     Transition<T> new_transition(from, to, true);
     _transitions.push_back(new_transition);
@@ -165,9 +158,9 @@ class RegexConstexpr
     constexpr explicit RegexConstexpr(
         const Container &pattern,
         const VocabularyConstexpr<value_type> &vocab) noexcept;
-    constexpr bool
-    match(const Container &text,
-          const VocabularyConstexpr<value_type> &vocab) const noexcept;
+
+    template <std::size_t M>
+    constexpr bool match_nfa(const Container &input) const noexcept;
 #ifndef REGEZ_DEBUG
   private:
 #endif
@@ -206,11 +199,84 @@ template <class Container, std::size_t N>
 #if __cplusplus > 201703L // C++ 20
     requires std::default_initializable<Container>
 #endif
-constexpr bool RegexConstexpr<Container, N>::match(
-    const Container &text,
-    const VocabularyConstexpr<value_type> &voc) const noexcept
+template <std::size_t M>
+constexpr bool
+RegexConstexpr<Container, N>::match_nfa(const Container &input) const noexcept
 {
-    // TODO: Match the text with the pattern
+    constexpr std::size_t n_states = pow((std::size_t) 2, N);
+    ConstexprStack<StateID, n_states> current_states;
+    current_states.push(_sm._initial_state);
+
+    ConstexprVector<StateID, n_states> visited_states;
+    ConstexprVector<value_type, M> values;
+    for (const auto &v : input)
+    {
+        values.push_back(v);
+    }
+
+    for (std::size_t i = 0; i <= values.size(); ++i)
+    {
+        if (i == values.size()) // End of input
+        {
+            for (const auto &state : current_states)
+            {
+                if (_sm._final_states.contains(state))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        ConstexprStack<StateID, pow((std::size_t) 2, N)> next_states;
+        for (const auto &state : current_states)
+        {
+            for (const auto &transition : _sm._transitions)
+            {
+                if (transition.from == state)
+                {
+                    if (transition.epsilon)
+                    {
+                        // Calculate closure
+                        ConstexprStack<StateID, N> closure;
+                        closure.push(transition.to);
+                        while (!closure.empty())
+                        {
+                            StateID current_state = closure.top();
+                            closure.pop();
+                            if (!visited_states.contains(current_state))
+                            {
+                                visited_states.push_back(current_state);
+                                for (const auto &next_transition :
+                                     _sm._transitions)
+                                {
+                                    if (next_transition.from == current_state
+                                        && next_transition.epsilon)
+                                    {
+                                        closure.push(next_transition.to);
+                                    }
+                                }
+                            }
+                        }
+                        for (const auto &a_state : visited_states)
+                        {
+                            next_states.push(a_state);
+                        }
+                    }
+                    else if (transition.symbol == values[i])
+                    {
+                        next_states.push(transition.to);
+                    }
+                }
+            }
+        }
+        current_states.clear();
+        for (const auto &a_state : next_states)
+        {
+            current_states.push(a_state);
+        }
+    }
+
     return false;
 }
 
@@ -422,7 +488,30 @@ RegexConstexpr<Container, N>::thompson_construction(
             state_stack.push(std::make_pair(state_from, state_to));
         }
     }
+    if (state_stack.size() != 1)
+    {
+        return sm;
+    }
+    std::pair<StateID, StateID> regex = state_stack.top();
+    sm._initial_state = regex.first;
+    sm._final_states.push_back(regex.second);
     return sm;
+}
+
+template <class T>
+std::ostream &operator<<(std::ostream &os, const Transition<T>& t)
+{
+    os << t.from << " --> |";
+    if (t.epsilon)
+    {
+        os << "ε";
+    }
+    else
+    {
+        os << t.symbol;
+    }
+    os << "| " << t.to;
+    return os;
 }
 
 } // namespace regez

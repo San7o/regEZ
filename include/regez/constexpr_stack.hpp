@@ -26,6 +26,8 @@
 
 #pragma once
 
+#include <array>
+
 namespace regez
 {
 
@@ -40,10 +42,22 @@ template <typename T, std::size_t N> class ConstexprStack
     constexpr std::size_t size() const noexcept;
     constexpr bool empty() const noexcept;
     constexpr bool contains(const T &value) const noexcept;
+    constexpr std::array<T, N>::const_iterator begin() const noexcept
+    {
+        return m_data.begin();
+    }
+    constexpr std::array<T, N>::const_iterator end() const noexcept
+    {
+        return m_data.begin() + m_size;
+    }
+    constexpr void clear() noexcept
+    {
+        m_size = 0;
+    }
 
   private:
     std::size_t m_size;
-    T m_data[N];
+    std::array<T, N> m_data;
 };
 
 template <typename T, std::size_t N>

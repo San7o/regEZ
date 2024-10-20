@@ -46,6 +46,31 @@ TEST(regez_constructor_constexpr, "regez constructor constexpr")
         regez(regez_str, vocab);
 }
 
+TEST(regez_match_nfa_constexpr, "regez match nfa constexpr")
+{
+    constexpr regez::VocabularyConstexpr<char> vocab({'|', '.', '*'});
+    constexpr std::array<char, 1> regez_str = {'a'};
+    constexpr regez::RegexConstexpr<std::array<char, 1>, 1> regez(regez_str,
+                                                                  vocab);
+    constexpr std::array<char, 1> input = {'a'};
+    constexpr bool match = regez.match_nfa<1>(input);
+    static_assert(match);
+
+    constexpr std::array<char, 1> input2 = {'b'};
+    constexpr bool match2 = regez.match_nfa<1>(input2);
+    static_assert(!match2);
+
+    constexpr regez::RegexConstexpr<std::array<char, 2>, 2> regez2(
+        std::array<char, 2>{'a', '*'}, vocab);
+    constexpr std::array<char, 2> input3 = {'a', 'a'};
+    constexpr bool match3 = regez2.match_nfa<2>(input3);
+    static_assert(match3);
+    for (const auto &t : regez2._sm._transitions)
+    {
+       std::cout << t << std::endl;
+    }
+}
+
 #ifdef REGEZ_DEBUG
 TEST(regez_infix2postfix_constexpr, "regez infix to postfix")
 {
@@ -113,10 +138,9 @@ TEST(regez_thompson_constexpr_test, "regez thompson construction constexpr")
     constexpr regez::ConstexprVector<char, 3> postfix =
         regez::RegexConstexpr<std::string, 3>::infix2postfix(std::string("a|b"),
                                                              vocab);
-    constexpr regez::StateMachine<char, regez::pow(2,3)> sm =
+    constexpr regez::StateMachine<char, regez::pow(2, 3)> sm =
         regez::RegexConstexpr<std::string, 3>::thompson_construction(postfix,
-                                                              vocab);
+                                                                     vocab);
     static_assert(sm._states.size() == 6);
 }
-
 #endif
